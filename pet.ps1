@@ -13,6 +13,61 @@ $root = $PSScriptRoot
 $assetRoot = Join-Path $root 'assets'
 $timingsPath = Join-Path $assetRoot 'timings.json'
 $errorLog = Join-Path $root 'pet-error.log'
+$statePath = Join-Path $root 'pet-state.json'
+
+$staticH = [math]::Round(288 * $Scale)
+
+# 启动目标：按当前形象决定
+#   鲸娘      -> dsh
+#   Claude 娘 -> claude (Claude Code)
+#   Codex 娘  -> ChatGPT 桌面版
+$launchDir = 'E:\desktop\CODE'
+$chatgptAppId = 'OpenAI.Codex_2p2nqsd0c76g0!App'
+
+$SKINS = @{
+    whale = @{
+        Name = '鲸娘'
+        Kind = 'anim'
+        W    = [math]::Round(301 * $Scale)
+        H    = [math]::Round(288 * $Scale)
+        ImgH = [math]::Round(288 * $Scale)
+    }
+    claude = @{
+        Name  = 'Claude 娘'
+        Kind  = 'static'
+        W     = $staticH
+        H     = $staticH + 8
+        ImgH  = $staticH
+        Idle  = 'claude-girl\claude-girl.png'
+        Happy = 'claude-girl\claude-girl-happy.png'
+    }
+    codex = @{
+        Name  = 'Codex 娘'
+        Kind  = 'static'
+        W     = $staticH
+        H     = $staticH + 8
+        ImgH  = $staticH
+        Idle  = 'codex-girl\codex-girl.png'
+        Happy = 'codex-girl\codex-girl-happy.png'
+    }
+}
+
+# --------------------------------------------------------------- saved state
+$initialSkin = 'whale'
+$saveLeft = $null
+$saveTop = $null
+
+if (Test-Path -LiteralPath $statePath) {
+    try {
+        $st = Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($null -ne $st.Skin -and $SKINS.ContainsKey([string]$st.Skin)) { $initialSkin = [string]$st.Skin }
+        if ($null -ne $st.Left) { $saveLeft = [double]$st.Left }
+        if ($null -ne $st.Top) { $saveTop = [double]$st.Top }
+    } catch { }
+}
+
+$script:skin = $initialSkin
+$meta0 = $SKINS[$initialSkin]
 
 try {
     if (-not (Test-Path -LiteralPath $timingsPath)) {
@@ -20,11 +75,6 @@ try {
     }
 
     $timings = Get-Content -LiteralPath $timingsPath -Raw -Encoding UTF8 | ConvertFrom-Json
-
-    $baseW = 301
-    $baseH = 288
-    $winW = [math]::Round($baseW * $Scale)
-    $winH = [math]::Round($baseH * $Scale)
 
     # ---------------------------------------------------------------- window
     $win = New-Object System.Windows.Window
@@ -35,30 +85,22 @@ try {
     $win.ShowInTaskbar = $false
     $win.ShowActivated = $false
     $win.ResizeMode = [System.Windows.ResizeMode]::NoResize
-    $win.Width = $winW
-    $win.Height = $winH
+    $win.Width = $meta0.W
+    $win.Height = $meta0.H
     $win.WindowStartupLocation = [System.Windows.WindowStartupLocation]::Manual
     $win.UseLayoutRounding = $true
 
+    $grid = New-Object System.Windows.Controls.Grid
+    $win.Content = $grid
+
     $img = New-Object System.Windows.Controls.Image
     $img.Stretch = [System.Windows.Media.Stretch]::Fill
-    [System.Windows.Media.RenderOptions]::SetBitmapScalingMode($img, [System.Windows.Media.BitmapScalingMode]::NearestNeighbor)
-    $win.Content = $img
+    $img.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+    $img.VerticalAlignment = [System.Windows.VerticalAlignment]::Bottom
+    [void]$grid.Children.Add($img)
 
-    # ------------------------------------------------------------- placement
-    $statePath = Join-Path $root 'pet-state.json'
-    $wa = [System.Windows.SystemParameters]::WorkArea
-
-    $win.Left = $wa.Right - $winW - 70
-    $win.Top = $wa.Bottom - $winH - 4
-
-    if (Test-Path -LiteralPath $statePath) {
-        try {
-            $st = Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json
-            if ($null -ne $st.Left) { $win.Left = [double]$st.Left }
-            if ($null -ne $st.Top) { $win.Top = [double]$st.Top }
-        } catch { }
-    }
+    $script:bob = New-Object System.Windows.Media.TranslateTransform(0, 0)
+    $img.RenderTransform = $script:bob
 
     function Clamp-ToScreen {
         $work = [System.Windows.SystemParameters]::WorkArea
@@ -70,6 +112,13 @@ try {
         elseif ($win.Top -gt $maxTop) { $win.Top = $maxTop }
     }
 
+    # ------------------------------------------------------------- placement
+    $wa = [System.Windows.SystemParameters]::WorkArea
+    $win.Left = $wa.Right - $win.Width - 70
+    $win.Top = $wa.Bottom - $win.Height - 4
+
+    if ($null -ne $saveLeft) { $win.Left = $saveLeft }
+    if ($null -ne $saveTop) { $win.Top = $saveTop }
     Clamp-ToScreen
 
     function Save-PetState {
@@ -77,6 +126,7 @@ try {
             $obj = [ordered]@{
                 Left = [math]::Round($win.Left, 1)
                 Top  = [math]::Round($win.Top, 1)
+                Skin = $script:skin
             }
             $obj | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding UTF8
         } catch { }
@@ -88,6 +138,30 @@ try {
         $win.Top = $work.Bottom - $win.Height - 4
         Clamp-ToScreen
         Save-PetState
+    }
+
+    function Start-Agent {
+        $script:lastInput = $script:sw.ElapsedMilliseconds
+
+        try {
+            if ($script:skin -eq 'codex') {
+                Start-Process -FilePath "shell:AppsFolder\$chatgptAppId"
+                return
+            }
+
+            $cmd = 'dsh'
+            if ($script:skin -eq 'claude') { $cmd = 'claude' }
+
+            $wt = Get-Command wt.exe -ErrorAction SilentlyContinue
+            if ($null -ne $wt) {
+                $wtArgs = '-d "' + $launchDir + '" powershell.exe -NoExit -Command "' + $cmd + '"'
+                Start-Process -FilePath $wt.Source -ArgumentList $wtArgs
+            } else {
+                Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoExit', '-Command', "Set-Location '$launchDir'; $cmd") -WorkingDirectory $launchDir
+            }
+        } catch {
+            [System.Windows.MessageBox]::Show("启动失败：$($_.Exception.Message)", '鲸娘桌宠', 'OK', 'Warning') | Out-Null
+        }
     }
 
     # --------------------------------------------------------------- animation
@@ -106,29 +180,45 @@ try {
     $script:dpi = 1.0
     $script:frameCache = @{}
 
+    function Load-Bitmap {
+        param([string]$path)
+
+        $bmp = New-Object System.Windows.Media.Imaging.BitmapImage
+        $bmp.BeginInit()
+        $bmp.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
+        $bmp.UriSource = New-Object System.Uri($path)
+        $bmp.EndInit()
+        $bmp.Freeze()
+        return $bmp
+    }
+
     function Get-AnimationFrames {
         param([string]$key)
 
-        if ($script:frameCache.ContainsKey($key)) {
-            return $script:frameCache[$key]
+        $cacheKey = $script:skin + '/' + $key
+        if ($script:frameCache.ContainsKey($cacheKey)) {
+            return $script:frameCache[$cacheKey]
         }
 
         $list = New-Object System.Collections.ArrayList
-        $entries = $timings.$key
-        if ($null -eq $entries) { throw "动画不存在：$key" }
+        $meta = $SKINS[$script:skin]
 
-        foreach ($f in $entries) {
-            $path = Join-Path (Join-Path $assetRoot $key) $f.file
-            $bmp = New-Object System.Windows.Media.Imaging.BitmapImage
-            $bmp.BeginInit()
-            $bmp.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
-            $bmp.UriSource = New-Object System.Uri($path)
-            $bmp.EndInit()
-            $bmp.Freeze()
-            [void]$list.Add([pscustomobject]@{ Img = $bmp; Dur = [int]$f.dur })
+        if ($meta.Kind -eq 'anim') {
+            $entries = $timings.$key
+            if ($null -eq $entries) { $entries = $timings.'idle' }
+            foreach ($f in $entries) {
+                $path = Join-Path (Join-Path $assetRoot $key) $f.file
+                [void]$list.Add([pscustomobject]@{ Img = (Load-Bitmap $path); Dur = [int]$f.dur })
+            }
+        } else {
+            if ($key -eq 'happy') {
+                [void]$list.Add([pscustomobject]@{ Img = (Load-Bitmap (Join-Path $assetRoot $meta.Happy)); Dur = 1600 })
+            } else {
+                [void]$list.Add([pscustomobject]@{ Img = (Load-Bitmap (Join-Path $assetRoot $meta.Idle)); Dur = 600000 })
+            }
         }
 
-        $script:frameCache[$key] = $list
+        $script:frameCache[$cacheKey] = $list
         return $list
     }
 
@@ -148,9 +238,44 @@ try {
         $img.Source = $frames[0].Img
         $script:deadline = $script:sw.ElapsedMilliseconds + $frames[0].Dur
 
-        if ($key -eq 'idle' -and $loop) {
+        if ($key -eq 'idle' -and $loop -and $SKINS[$script:skin].Kind -eq 'anim') {
             $script:nextVariation = $script:sw.ElapsedMilliseconds + (Get-Random -Minimum 14000 -Maximum 34000)
         }
+    }
+
+    function Apply-Skin {
+        param([string]$key, [bool]$resize = $true)
+
+        if (-not $SKINS.ContainsKey($key)) { $key = 'whale' }
+        $meta = $SKINS[$key]
+
+        if ($resize) {
+            $oldLeft = $win.Left
+            $oldTop = $win.Top
+            $oldW = $win.Width
+            $oldH = $win.Height
+
+            $win.Width = $meta.W
+            $win.Height = $meta.H
+            $win.Left = $oldLeft + ($oldW - $meta.W) / 2
+            $win.Top = $oldTop + ($oldH - $meta.H)
+        }
+
+        $script:skin = $key
+        $img.Width = $meta.W
+        $img.Height = $meta.ImgH
+        $script:bob.Y = 0
+
+        if ($meta.Kind -eq 'anim') {
+            [System.Windows.Media.RenderOptions]::SetBitmapScalingMode($img, [System.Windows.Media.BitmapScalingMode]::NearestNeighbor)
+        } else {
+            [System.Windows.Media.RenderOptions]::SetBitmapScalingMode($img, [System.Windows.Media.BitmapScalingMode]::HighQuality)
+        }
+
+        Clamp-ToScreen
+        Set-Animation 'idle' $true
+
+        if ($resize) { Save-PetState }
     }
 
     function Wake-Pet {
@@ -162,6 +287,13 @@ try {
 
     function Update-Animation {
         $now = $script:sw.ElapsedMilliseconds
+
+        if ($SKINS[$script:skin].Kind -eq 'static' -and -not $script:dragging) {
+            $script:bob.Y = -2.4 * (0.5 + 0.5 * [math]::Sin($script:sw.Elapsed.TotalSeconds * 1.8))
+        } else {
+            $script:bob.Y = 0
+        }
+
         if ($null -eq $script:frames) { return }
 
         if ($now -ge $script:deadline) {
@@ -181,14 +313,16 @@ try {
 
         $now = $script:sw.ElapsedMilliseconds
 
-        if ($script:animKey -eq 'idle' -and $script:loop -and $now -ge $script:nextVariation) {
+        if ($SKINS[$script:skin].Kind -eq 'anim' -and
+            $script:animKey -eq 'idle' -and $script:loop -and $now -ge $script:nextVariation) {
             $pick = @('idle-look', 'idle-spout', 'swim') | Get-Random
             Set-Animation $pick $false 'idle'
             $script:nextVariation = $now + (Get-Random -Minimum 16000 -Maximum 38000)
             return
         }
 
-        if ($script:animKey -ne 'sleeping' -and $script:animKey -ne 'waking' -and
+        if ($SKINS[$script:skin].Kind -eq 'anim' -and
+            $script:animKey -ne 'sleeping' -and $script:animKey -ne 'waking' -and
             (($now - $script:lastInput) -gt 180000)) {
             Set-Animation 'sleeping' $true
         }
@@ -199,6 +333,11 @@ try {
 
         $now = $script:sw.ElapsedMilliseconds
         $script:lastInput = $now
+
+        if ($SKINS[$script:skin].Kind -eq 'static') {
+            Set-Animation 'happy' $false 'idle'
+            return
+        }
 
         $script:clickTimes = @($script:clickTimes | Where-Object { ($now - $_) -lt 1600 })
         $script:clickTimes += $now
@@ -285,9 +424,22 @@ try {
     # ------------------------------------------------------------ context menu
     $menu = New-Object System.Windows.Controls.ContextMenu
 
+    $miLaunch = New-Object System.Windows.Controls.MenuItem
+    $miLaunch.Header = '启动 DSH'
+    $miLaunch.Add_Click({ param($s, $e) Start-Agent })
+    $menu.Items.Add($miLaunch) | Out-Null
+
     $miPet = New-Object System.Windows.Controls.MenuItem
     $miPet.Header = '摸摸头'
-    $miPet.Add_Click({ param($s, $e) $script:lastInput = $script:sw.ElapsedMilliseconds; Set-Animation 'tickle' $false 'idle' })
+    $miPet.Add_Click({
+            param($s, $e)
+            $script:lastInput = $script:sw.ElapsedMilliseconds
+            if ($SKINS[$script:skin].Kind -eq 'static') {
+                Set-Animation 'happy' $false 'idle'
+            } else {
+                Set-Animation 'tickle' $false 'idle'
+            }
+        })
     $menu.Items.Add($miPet) | Out-Null
 
     $miHappy = New-Object System.Windows.Controls.MenuItem
@@ -305,6 +457,23 @@ try {
     $miWake.Add_Click({ param($s, $e) Wake-Pet })
     $menu.Items.Add($miWake) | Out-Null
 
+    $miSkin = New-Object System.Windows.Controls.MenuItem
+    $miSkin.Header = '换形象'
+    foreach ($k in @('whale', 'claude', 'codex')) {
+        $mi = New-Object System.Windows.Controls.MenuItem
+        $mi.Header = $SKINS[$k].Name
+        $mi.Tag = $k
+        $mi.IsCheckable = $true
+        $mi.IsChecked = ($k -eq $script:skin)
+        $mi.Add_Click({
+                param($s, $e)
+                Apply-Skin ([string]$s.Tag) $true
+                Update-SkinMenu
+            })
+        [void]$miSkin.Items.Add($mi)
+    }
+    $menu.Items.Add($miSkin) | Out-Null
+
     $menu.Items.Add((New-Object System.Windows.Controls.Separator)) | Out-Null
 
     $miReset = New-Object System.Windows.Controls.MenuItem
@@ -319,6 +488,20 @@ try {
 
     $win.ContextMenu = $menu
 
+    function Update-SkinMenu {
+        foreach ($item in $miSkin.Items) {
+            $item.IsChecked = ([string]$item.Tag -eq $script:skin)
+        }
+        $miSleep.IsEnabled = ($script:skin -eq 'whale')
+        $miWake.IsEnabled = ($script:skin -eq 'whale')
+
+        switch ($script:skin) {
+            'claude' { $miLaunch.Header = '启动 Claude Code' }
+            'codex'  { $miLaunch.Header = '启动 ChatGPT' }
+            default  { $miLaunch.Header = '启动 DSH' }
+        }
+    }
+
     # ------------------------------------------------------------------- timer
     $timer = New-Object System.Windows.Threading.DispatcherTimer
     $timer.Interval = [TimeSpan]::FromMilliseconds(30)
@@ -332,7 +515,6 @@ try {
                 $script:dpi = 1.0
             }
             Clamp-ToScreen
-            Set-Animation 'idle' $true
             $timer.Start()
         })
 
@@ -341,6 +523,9 @@ try {
             Save-PetState
             $timer.Stop()
         })
+
+    Apply-Skin $initialSkin $false
+    Update-SkinMenu
 
     # --------------------------------------------------------------------- run
     $app = New-Object System.Windows.Application
