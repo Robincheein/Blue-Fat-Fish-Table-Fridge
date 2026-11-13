@@ -43,13 +43,19 @@ The 267 sprite frames load in about a second.
 
 | State | Pet |
 | --- | --- |
-| Thinking / waiting for first token | Whale Girl keeps her normal face and shows a pixel thought bubble |
-| Tool use / coding | Whale Girl keeps her normal face and shows a pixel `</>` marker |
-| Turn complete | Whale Girl switches to happy for about 3 seconds |
-| Claude / Codex Girl | No pixel bubble assets, so a text bubble shows "…" or "✓ done" |
+| Thinking / waiting for first token | Normal face + pixel thought bubble |
+| Writing docs (.md / .txt) | Typing/homework pose with a pixel `Aa` overhead |
+| Reading web (web_fetch / WebFetch) | Normal face + pixel globe |
+| Coding / tools | Typing pose with the animated color `</>` |
+| Thinking too long (>45 s) | A bowl of rice replaces the bubble |
+| Even longer (>90 s) | A little fish (slacking off) |
+| Turn complete | Happy for about 3 seconds |
+| Claude / Codex Girl | Text bubble ("…" / "✓ done"); no animation frames |
 | Idle | Back to idle |
 
-Whale Girl keeps her normal expression during thinking / tool use and only overlays a pixel bubble.
+Whale Girl switches to the typing pose for writing and coding (the docs variant has the `</>` replaced by `Aa`);
+thinking, web and long-thinking states keep her normal face with an overlay.
+Claude Code hooks include the tool name and file path in the status file, so `.md` and `.py` are distinguished.
 
 **DSH**: reads the newest `workingActivity.tracker.phase` (`thinking` / `tool` / `idle`) from
 `$DSH_HOME/storages/session_projcache/sessions/*.json`. No DSH changes required.

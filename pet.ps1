@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿param(
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿param(
     [double]$Scale = 0.75
 )
 
@@ -296,6 +296,9 @@ try {
     $script:doneUntil = 0
     $script:doneEventTs = 0
     $script:lastStatusAt = 0
+    $script:agentSince = 0
+    $script:bestTool = ''
+    $script:bestFile = ''
     $script:chatgptAumidCache = ''
     $script:overlayKind = ''
     $script:overlayFrame = 0
@@ -328,6 +331,11 @@ try {
         $durs = @()
         foreach ($fr in $timings.$srcKey) { $durs += [int]$fr.dur }
         $script:overlayDurs[$k] = $durs
+    }
+
+    foreach ($k in @('docs', 'web', 'rice', 'fish')) {
+        $script:overlayFrames[$k] = @((Load-Bitmap (Join-Path $assetRoot ('status\' + $k + '.png'))))
+        $script:overlayDurs[$k] = @(600000)
     }
 
     $thoughtImg.Source = $script:overlayFrames['thinking'][0]
@@ -542,16 +550,19 @@ try {
 
         if ($SKINS[$script:skin].Kind -ne 'anim') { return }
 
-        if ($kind -eq 'thinking') {
-            $thoughtImg.Source = $script:overlayFrames['thinking'][0]
-            $thoughtImg.Visibility = [System.Windows.Visibility]::Visible
-            $script:overlayKind = 'thinking'
-            $script:overlayFrame = 0
-            $script:overlayDeadline = 0
-        } elseif ($kind -eq 'working') {
+        $src = $null
+        if ($kind -eq 'working') {
             $codeImg.Source = $script:overlayFrames['working'][0]
             $codeImg.Visibility = [System.Windows.Visibility]::Visible
-            $script:overlayKind = 'working'
+            $src = $script:overlayFrames['working']
+        } elseif ($script:overlayFrames.ContainsKey($kind)) {
+            $thoughtImg.Source = $script:overlayFrames[$kind][0]
+            $thoughtImg.Visibility = [System.Windows.Visibility]::Visible
+            $src = $script:overlayFrames[$kind]
+        }
+
+        if ($null -ne $src) {
+            $script:overlayKind = $kind
             $script:overlayFrame = 0
             $script:overlayDeadline = 0
         }
@@ -566,6 +577,7 @@ try {
         $frames = $script:overlayFrames[$kind]
         $durs = $script:overlayDurs[$kind]
         if ($null -eq $frames -or $frames.Count -eq 0) { return }
+        if ($frames.Count -le 1) { return }
 
         $now = $script:sw.ElapsedMilliseconds
         if ($now -lt $script:overlayDeadline) { return }
@@ -597,7 +609,14 @@ try {
             $state = 'idle'
             if ($phase -eq 'thinking' -or $phase -eq 'waiting') { $state = 'thinking' }
             elseif ($phase -eq 'tool') { $state = 'working' }
-            return @{ state = $state; ts = [double]$activity.updatedAt; source = 'dsh' }
+            $toolText = ''
+            $tools = $activity.tracker.activeTools
+            if ($null -ne $tools) {
+                foreach ($t in $tools) {
+                    $toolText += ' ' + [string]$t.name + ' ' + [string]$t.detail
+                }
+            }
+            return @{ state = $state; ts = [double]$activity.updatedAt; source = 'dsh'; tool = $toolText; file = '' }
         } catch {
             return $null
         }
@@ -614,12 +633,24 @@ try {
 
             $state = [string]$j.state
             if ($state -eq 'thinking' -or $state -eq 'working' -or $state -eq 'done' -or $state -eq 'idle') {
-                return @{ state = $state; ts = $ts; source = 'claude' }
+                return @{ state = $state; ts = $ts; source = 'claude'; tool = [string]$j.tool; file = [string]$j.file }
             }
             return $null
         } catch {
             return $null
         }
+    }
+
+    function Get-ActivityKind {
+        param([string]$state, [string]$tool, [string]$file)
+
+        if ($state -eq 'thinking') { return 'thinking' }
+        if ($state -ne 'working') { return '' }
+
+        $all = ($tool + ' ' + $file).ToLowerInvariant()
+        if ($all -match 'web_fetch|web_search|webfetch|websearch|fetch|http://|https://') { return 'web' }
+        if ($all -match '\.(md|mdx|markdown|txt|rst|docx?|pdf)') { return 'docs' }
+        return 'working'
     }
 
     function Update-AgentStatus {
@@ -635,9 +666,13 @@ try {
 
         $state = 'idle'
         $source = ''
+        $script:bestTool = ''
+        $script:bestFile = ''
         if ($null -ne $best) {
             $state = [string]$best.state
             $source = [string]$best.source
+            $script:bestTool = [string]$best.tool
+            $script:bestFile = [string]$best.file
         }
 
         $previous = $script:agentState
@@ -657,12 +692,13 @@ try {
         if ($state -ne $previous) {
             $script:agentState = $state
             $script:agentSource = $source
+            if ($state -eq 'thinking' -and $previous -ne 'thinking') { $script:agentSince = $now }
 
             if ($state -eq 'thinking' -or $state -eq 'working') {
                 $script:doneUntil = 0
                 Set-StatusBubble '…'
                 Set-AgentOverlay $state
-                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing')) {
+                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
                     Set-Animation 'idle' $true
                 }
                 $script:lastInput = $now
@@ -671,14 +707,14 @@ try {
                 Set-AgentOverlay ''
                 $script:doneUntil = $now + 3200
                 if ($null -ne $best) { $script:doneEventTs = $best.ts } else { $script:doneEventTs = $now }
-                if ($script:animKey -in @('idle', 'thinking', 'typing')) {
+                if ($script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
                     Set-Animation 'happy' $false 'idle'
                 }
             } else {
                 Set-StatusBubble ''
                 Set-AgentOverlay ''
                 $script:doneUntil = 0
-                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing')) {
+                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
                     Set-Animation 'idle' $true
                 }
             }
@@ -694,9 +730,33 @@ try {
             }
         }
 
-        if (($script:agentState -eq 'thinking' -or $script:agentState -eq 'working') -and
-            $SKINS[$script:skin].Kind -eq 'anim') {
-            Set-AgentOverlay $script:agentState
+        $kind = ''
+        if ($script:agentState -eq 'thinking') {
+            $kind = 'thinking'
+            $thinkMs = $now - $script:agentSince
+            if ($thinkMs -gt 90000) { $kind = 'fish' }
+            elseif ($thinkMs -gt 45000) { $kind = 'rice' }
+        } elseif ($script:agentState -eq 'working') {
+            $kind = Get-ActivityKind 'working' $script:bestTool $script:bestFile
+        }
+
+        if ($kind -eq 'working') {
+            Set-AgentOverlay ''
+            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
+                if ($script:animKey -ne 'typing') { Set-Animation 'typing' $true }
+            }
+        } elseif ($kind -eq 'docs') {
+            Set-AgentOverlay 'docs'
+            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
+                if ($script:animKey -ne 'typing-homework') { Set-Animation 'typing-homework' $true }
+            }
+        } elseif ($kind -ne '') {
+            Set-AgentOverlay $kind
+            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
+                if ($script:animKey -ne 'idle') { Set-Animation 'idle' $true }
+            }
+        } else {
+            Set-AgentOverlay ''
         }
     }
 
