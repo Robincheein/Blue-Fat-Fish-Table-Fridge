@@ -1168,5 +1168,25 @@
       "dur": 210,
       "file": "13.png"
     }
+  ],
+  "eyes-close": [
+    {
+      "dur": 200,
+      "file": "00.png"
+    },
+    {
+      "dur": 350,
+      "file": "01.png"
+    },
+    {
+      "dur": 450,
+      "file": "02.png"
+    }
+  ],
+  "eyes-closed": [
+    {
+      "dur": 600000,
+      "file": "00.png"
+    }
   ]
 }

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿param(
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿param(
     [double]$Scale = 0.75
 )
 
@@ -698,7 +698,7 @@ try {
                 $script:doneUntil = 0
                 Set-StatusBubble '…'
                 Set-AgentOverlay $state
-                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
+                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed')) {
                     Set-Animation 'idle' $true
                 }
                 $script:lastInput = $now
@@ -707,14 +707,14 @@ try {
                 Set-AgentOverlay ''
                 $script:doneUntil = $now + 3200
                 if ($null -ne $best) { $script:doneEventTs = $best.ts } else { $script:doneEventTs = $now }
-                if ($script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
+                if ($script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed')) {
                     Set-Animation 'happy' $false 'idle'
                 }
             } else {
                 Set-StatusBubble ''
                 Set-AgentOverlay ''
                 $script:doneUntil = 0
-                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
+                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed')) {
                     Set-Animation 'idle' $true
                 }
             }
@@ -742,17 +742,22 @@ try {
 
         if ($kind -eq 'working') {
             Set-AgentOverlay ''
-            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
+            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed')) {
                 if ($script:animKey -ne 'typing') { Set-Animation 'typing' $true }
             }
         } elseif ($kind -eq 'docs') {
             Set-AgentOverlay 'docs'
-            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
+            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed')) {
                 if ($script:animKey -ne 'typing-homework') { Set-Animation 'typing-homework' $true }
+            }
+        } elseif ($kind -eq 'rice' -or $kind -eq 'fish') {
+            Set-AgentOverlay $kind
+            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
+                Set-Animation 'eyes-close' $false 'eyes-closed'
             }
         } elseif ($kind -ne '') {
             Set-AgentOverlay $kind
-            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
+            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed')) {
                 if ($script:animKey -ne 'idle') { Set-Animation 'idle' $true }
             }
         } else {

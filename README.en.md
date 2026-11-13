@@ -47,8 +47,8 @@ The 267 sprite frames load in about a second.
 | Writing docs (.md / .txt) | Typing/homework pose with a pixel `Aa` overhead |
 | Reading web (web_fetch / WebFetch) | Normal face + pixel globe |
 | Coding / tools | Typing pose with the animated color `</>` |
-| Thinking too long (>45 s) | The thought bubble shows a bowl of rice |
-| Even longer (>90 s) | The bubble shows a little fish (slacking off) |
+| Thinking too long (>45 s) | The bubble shows a bowl of rice; her eyes slowly close |
+| Even longer (>90 s) | The bubble shows a little fish; eyes stay closed |
 | Turn complete | Happy for about 3 seconds |
 | Claude / Codex Girl | Text bubble ("…" / "✓ done"); no animation frames |
 | Idle | Back to idle |
