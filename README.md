@@ -1,4 +1,4 @@
-# 蓝胖鱼桌宠 / Blue Fat Fish Desktop Pet
+# 大肥鱼桌宠 / Blue Fat Fish Desktop Pet
 
 DSH 内置像素看板娘的 Windows 桌宠。纯 PowerShell + WPF（.NET Framework）实现，零第三方依赖，单文件夹即可运行。
 
