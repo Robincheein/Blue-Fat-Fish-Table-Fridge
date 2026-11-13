@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿param(
+﻿﻿﻿﻿﻿﻿﻿param(
     [double]$Scale = 0.75
 )
 
@@ -21,8 +21,10 @@ $staticH = [math]::Round(288 * $Scale)
 #   鲸娘      -> dsh
 #   Claude 娘 -> claude (Claude Code)
 #   Codex 娘  -> ChatGPT 桌面版
+# 命令和 ChatGPT 都会自动探测；$launchDir 不存在时回退到用户主目录。
+# 如需强制指定 ChatGPT 的 AUMID，把 $chatgptAppId 填上即可（留空自动探测）。
 $launchDir = 'E:\desktop\CODE'
-$chatgptAppId = 'OpenAI.Codex_2p2nqsd0c76g0!App'
+$chatgptAppId = ''
 
 # --------------------------------------------------------------- agent status
 # DSH：会话投影里的 workingActivity.phase
@@ -192,24 +194,80 @@ try {
         Save-PetState
     }
 
+    function Resolve-AgentCommand {
+        param([string]$Name, [string[]]$Fallbacks)
+
+        $cmd = Get-Command $Name -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($null -ne $cmd) { return $cmd.Source }
+
+        foreach ($p in $Fallbacks) {
+            if ($p -and (Test-Path -LiteralPath $p)) { return $p }
+        }
+        return $null
+    }
+
+    function Get-ChatGptAumid {
+        if ($chatgptAppId) { return $chatgptAppId }
+        if ($script:chatgptAumidCache) { return $script:chatgptAumidCache }
+
+        try {
+            $app = Get-StartApps | Where-Object { $_.Name -like '*ChatGPT*' -or $_.AppID -like 'OpenAI.Codex*' } | Select-Object -First 1
+            if ($null -ne $app) {
+                $script:chatgptAumidCache = [string]$app.AppID
+                return $script:chatgptAumidCache
+            }
+        } catch { }
+
+        return $null
+    }
+
     function Start-Agent {
         $script:lastInput = $script:sw.ElapsedMilliseconds
 
         try {
+            $workDir = $launchDir
+            if (-not (Test-Path -LiteralPath $workDir)) { $workDir = $env:USERPROFILE }
+
             if ($script:skin -eq 'codex') {
-                Start-Process -FilePath "shell:AppsFolder\$chatgptAppId"
+                $aumid = Get-ChatGptAumid
+                if (-not $aumid) {
+                    [System.Windows.MessageBox]::Show('没找到 ChatGPT 桌面版，请先安装并登录。', '鲸娘桌宠', 'OK', 'Warning') | Out-Null
+                    return
+                }
+                Start-Process -FilePath "shell:AppsFolder\$aumid"
                 return
             }
 
-            $cmd = 'dsh'
-            if ($script:skin -eq 'claude') { $cmd = 'claude' }
+            if ($script:skin -eq 'claude') {
+                $exe = Resolve-AgentCommand 'claude' @(
+                    (Join-Path $env:USERPROFILE '.local\bin\claude.exe'),
+                    (Join-Path $env:APPDATA 'npm\claude.cmd'),
+                    (Join-Path $env:LOCALAPPDATA 'Programs\claude\claude.exe')
+                )
+                if (-not $exe) {
+                    [System.Windows.MessageBox]::Show('没找到 Claude Code，请先安装 claude CLI 或把它加入 PATH。', '鲸娘桌宠', 'OK', 'Warning') | Out-Null
+                    return
+                }
+                $cmd = "& '$exe'"
+            } else {
+                $exe = Resolve-AgentCommand 'dsh' @(
+                    (Join-Path $env:APPDATA 'npm\dsh.cmd'),
+                    (Join-Path $env:APPDATA 'npm\dsh.ps1'),
+                    (Join-Path $env:ProgramFiles 'nodejs\dsh.cmd')
+                )
+                if (-not $exe) {
+                    [System.Windows.MessageBox]::Show('没找到 dsh，请先安装 DSH 或把它加入 PATH。', '鲸娘桌宠', 'OK', 'Warning') | Out-Null
+                    return
+                }
+                $cmd = "& '$exe'"
+            }
 
-            $wt = Get-Command wt.exe -ErrorAction SilentlyContinue
+            $wt = Get-Command wt.exe -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($null -ne $wt) {
-                $wtArgs = '-d "' + $launchDir + '" powershell.exe -NoExit -Command "' + $cmd + '"'
+                $wtArgs = '-d "' + $workDir + '" powershell.exe -ExecutionPolicy Bypass -NoExit -Command "' + $cmd + '"'
                 Start-Process -FilePath $wt.Source -ArgumentList $wtArgs
             } else {
-                Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoExit', '-Command', "Set-Location '$launchDir'; $cmd") -WorkingDirectory $launchDir
+                Start-Process -FilePath 'powershell.exe' -ArgumentList @('-ExecutionPolicy', 'Bypass', '-NoExit', '-Command', "Set-Location '$workDir'; $cmd") -WorkingDirectory $workDir
             }
         } catch {
             [System.Windows.MessageBox]::Show("启动失败：$($_.Exception.Message)", '鲸娘桌宠', 'OK', 'Warning') | Out-Null
@@ -238,6 +296,7 @@ try {
     $script:doneUntil = 0
     $script:doneEventTs = 0
     $script:lastStatusAt = 0
+    $script:chatgptAumidCache = ''
 
     function Load-Bitmap {
         param([string]$path)

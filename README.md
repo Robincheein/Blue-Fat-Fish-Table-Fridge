@@ -23,6 +23,7 @@ DSH 内置像素看板娘的 Windows 桌宠。纯 PowerShell + WPF（.NET Framew
 
 1. 克隆或下载本仓库
 2. 双击 `launch.vbs`（无控制台窗口）
+3. 想让 Claude Code 也有状态联动：运行一次 `install-claude-hooks.ps1`，然后重启 Claude Code
 
 素材共 267 帧，首次加载约 1 秒。
 
@@ -53,21 +54,9 @@ DSH 内置像素看板娘的 Windows 桌宠。纯 PowerShell + WPF（.NET Framew
 **DSH**：直接读 `$DSH_HOME/storages/session_projcache/sessions/*.json` 里最新的
 `workingActivity.tracker.phase`（`thinking` / `tool` / `idle`），不需要改 DSH。
 
-**Claude Code**：用 hooks 写 `%LOCALAPPDATA%\dafeiyu-pet\claude-status.json`，仓库里的
-`claude-status.ps1` 就是写入脚本。需要把 hooks 合并进 `%CLAUDE_CONFIG_DIR%\settings.json`（改前请备份）：
-
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"<repo>\\claude-status.ps1\" thinking" }] }],
-    "PreToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"<repo>\\claude-status.ps1\" working" }] }],
-    "Stop": [{ "hooks": [{ "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"<repo>\\claude-status.ps1\" done" }] }],
-    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"<repo>\\claude-status.ps1\" idle" }] }]
-  }
-}
-```
-
-改完重启 Claude Code 生效。
+**Claude Code**：运行一次 `install-claude-hooks.ps1`，它会自动备份并合并 hooks 进
+`%CLAUDE_CONFIG_DIR%\settings.json`，然后重启 Claude Code 即可。
+状态写在 `%LOCALAPPDATA%\dafeiyu-pet\claude-status.json`。
 
 ## 启动映射
 
@@ -79,15 +68,20 @@ DSH 内置像素看板娘的 Windows 桌宠。纯 PowerShell + WPF（.NET Framew
 | Claude 娘 | `claude`（Claude Code） | 同上 |
 | Codex 娘 | ChatGPT 桌面版 | `shell:AppsFolder\<AUMID>` |
 
+三个目标都会自动探测：
+
+- `dsh` / `claude`：先找 PATH，再找 npm 全局目录（`%APPDATA%\npm`）和常见安装位置
+- ChatGPT 桌面版：用 `Get-StartApps` 自动找 AUMID
+- `$launchDir` 不存在时回退到用户主目录
+
 配置在 `pet.ps1` 顶部：
 
 ```powershell
-$launchDir = 'E:\desktop\CODE'
-$chatgptAppId = 'OpenAI.Codex_2p2nqsd0c76g0!App'
+$launchDir = 'E:\desktop\CODE'   # 不存在会自动回退
+$chatgptAppId = ''               # 留空自动探测，可手动覆盖
 ```
 
-`$chatgptAppId` 因机器而异，可用 `Get-StartApps | Where-Object Name -like '*ChatGPT*'` 查。
-没有 `wt.exe` 时回退到 PowerShell 窗口；启动失败会弹提示框。
+没有 `wt.exe` 时回退到 PowerShell 窗口；找不到命令会弹提示框。
 
 ## 换形象
 
@@ -105,6 +99,7 @@ $chatgptAppId = 'OpenAI.Codex_2p2nqsd0c76g0!App'
 pet.ps1            # 宠物本体（PowerShell + WPF）
 launch.vbs         # 无窗口启动器
 claude-status.ps1  # Claude Code hooks 的状态写入脚本
+install-claude-hooks.ps1  # 一键安装 / 卸载 hooks（自动备份）
 assets/            # 鲸娘 267 帧 + Claude / Codex 立绘
 README.md
 ```

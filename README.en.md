@@ -23,6 +23,7 @@ Three characters: **Whale Girl** (22 animations, 267 frames), **Claude Girl**, a
 
 1. Clone or download this repository
 2. Double-click `launch.vbs`
+3. For Claude Code status, run `install-claude-hooks.ps1` once and restart Claude Code
 
 The 267 sprite frames load in about a second.
 
@@ -53,21 +54,9 @@ Whale Girl keeps her normal expression during thinking / tool use and only overl
 **DSH**: reads the newest `workingActivity.tracker.phase` (`thinking` / `tool` / `idle`) from
 `$DSH_HOME/storages/session_projcache/sessions/*.json`. No DSH changes required.
 
-**Claude Code**: hooks write `%LOCALAPPDATA%\dafeiyu-pet\claude-status.json` via the included
-`claude-status.ps1`. Merge hooks into `%CLAUDE_CONFIG_DIR%\settings.json` (back it up first):
-
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"<repo>\\claude-status.ps1\" thinking" }] }],
-    "PreToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"<repo>\\claude-status.ps1\" working" }] }],
-    "Stop": [{ "hooks": [{ "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"<repo>\\claude-status.ps1\" done" }] }],
-    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"<repo>\\claude-status.ps1\" idle" }] }]
-  }
-}
-```
-
-Restart Claude Code afterwards.
+**Claude Code**: run `install-claude-hooks.ps1` once. It backs up and merges the hooks into
+`%CLAUDE_CONFIG_DIR%\settings.json`; restart Claude Code afterwards.
+The status file is `%LOCALAPPDATA%\dafeiyu-pet\claude-status.json`.
 
 ## Launcher mapping
 
@@ -79,16 +68,20 @@ The first context-menu item follows the current skin:
 | Claude Girl | `claude` (Claude Code) | Same |
 | Codex Girl | ChatGPT desktop app | `shell:AppsFolder\<AUMID>` |
 
+All three targets are auto-detected:
+
+- `dsh` / `claude`: checked on PATH, then the npm global folder (`%APPDATA%\npm`) and common install paths
+- ChatGPT desktop app: AUMID discovered via `Get-StartApps`
+- If `$launchDir` does not exist, the user's home folder is used
+
 Configuration at the top of `pet.ps1`:
 
 ```powershell
-$launchDir = 'E:\desktop\CODE'
-$chatgptAppId = 'OpenAI.Codex_2p2nqsd0c76g0!App'
+$launchDir = 'E:\desktop\CODE'   # falls back if missing
+$chatgptAppId = ''               # empty = auto-detect, or set to override
 ```
 
-The AUMID is machine-specific; find yours with
-`Get-StartApps | Where-Object Name -like '*ChatGPT*'`.
-Falls back to a PowerShell window when `wt.exe` is unavailable; failures show a message box.
+Falls back to a PowerShell window when `wt.exe` is unavailable; missing commands show a message box.
 
 ## Skins
 
@@ -106,6 +99,7 @@ Right-click → **Change skin**. The choice is stored in `pet-state.json`.
 pet.ps1            # the pet (PowerShell + WPF)
 launch.vbs         # windowless launcher
 claude-status.ps1  # status writer used by Claude Code hooks
+install-claude-hooks.ps1  # one-shot installer / uninstaller for the hooks
 assets/            # 267 whale frames + Claude / Codex portraits
 README.md
 ```
