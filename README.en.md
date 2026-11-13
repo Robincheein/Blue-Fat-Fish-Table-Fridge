@@ -112,15 +112,6 @@ README.md
 
 `pet-state.json` (position / skin) is generated at runtime and ignored by git.
 
-## Tags
-
-- `v3-status` — agent status integration (current)
-- `v2-launcher` — multi-skin + launcher
-- `v1-original` — original whale-only build + screen clamping
-- `experiments` — hearts / procedural animation / blink-frame experiment
-
-Restore a tag's files with `git checkout <tag> -- .`
-
 ## Credits
 
 Character assets come from the DSH bundle (`@deepseek-harness-tui/dsh-tui/assets`); the characters and

@@ -112,17 +112,6 @@ README.md
 
 `pet-state.json`（位置 / 形象）运行时生成，已加入 `.gitignore`。
 
-## 版本
-
-仓库保留了开发过程中的几个标签：
-
-- `v3-status` —— 状态联动（当前）
-- `v2-launcher` —— 多形象 + 启动入口
-- `v1-original` —— 最初的鲸娘版 + 屏幕边界
-- `experiments` —— 爱心 / 程序动画 / 闭眼帧的实验版
-
-切换某个版本的文件：`git checkout <tag> -- .`
-
 ## 素材说明
 
 角色素材来自 DSH 内置资源（`@deepseek-harness-tui/dsh-tui/assets`），角色与美术版权归原作者。
