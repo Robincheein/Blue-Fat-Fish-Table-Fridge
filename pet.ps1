@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿param(
+﻿﻿﻿﻿﻿﻿param(
     [double]$Scale = 0.75
 )
 
@@ -107,6 +107,24 @@ try {
     $img.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
     $img.VerticalAlignment = [System.Windows.VerticalAlignment]::Bottom
     [void]$grid.Children.Add($img)
+
+    $thoughtImg = New-Object System.Windows.Controls.Image
+    $thoughtImg.Stretch = [System.Windows.Media.Stretch]::Fill
+    $thoughtImg.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Left
+    $thoughtImg.VerticalAlignment = [System.Windows.VerticalAlignment]::Top
+    $thoughtImg.IsHitTestVisible = $false
+    $thoughtImg.Visibility = [System.Windows.Visibility]::Collapsed
+    [System.Windows.Media.RenderOptions]::SetBitmapScalingMode($thoughtImg, [System.Windows.Media.BitmapScalingMode]::NearestNeighbor)
+    [void]$grid.Children.Add($thoughtImg)
+
+    $codeImg = New-Object System.Windows.Controls.Image
+    $codeImg.Stretch = [System.Windows.Media.Stretch]::Fill
+    $codeImg.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Left
+    $codeImg.VerticalAlignment = [System.Windows.VerticalAlignment]::Top
+    $codeImg.IsHitTestVisible = $false
+    $codeImg.Visibility = [System.Windows.Visibility]::Collapsed
+    [System.Windows.Media.RenderOptions]::SetBitmapScalingMode($codeImg, [System.Windows.Media.BitmapScalingMode]::NearestNeighbor)
+    [void]$grid.Children.Add($codeImg)
 
     $script:bob = New-Object System.Windows.Media.TranslateTransform(0, 0)
     $img.RenderTransform = $script:bob
@@ -233,6 +251,16 @@ try {
         return $bmp
     }
 
+    $thoughtImg.Source = Load-Bitmap (Join-Path $assetRoot 'status\thinking-bubble.png')
+    $thoughtImg.Width = [math]::Round(100 * $Scale)
+    $thoughtImg.Height = [math]::Round(88 * $Scale)
+    $thoughtImg.Margin = New-Object System.Windows.Thickness -ArgumentList @([math]::Round(200 * $Scale), [math]::Round(2 * $Scale), 0, 0)
+
+    $codeImg.Source = Load-Bitmap (Join-Path $assetRoot 'status\working-code.png')
+    $codeImg.Width = [math]::Round(90 * $Scale)
+    $codeImg.Height = [math]::Round(60 * $Scale)
+    $codeImg.Margin = New-Object System.Windows.Thickness -ArgumentList @([math]::Round(200 * $Scale), [math]::Round(10 * $Scale), 0, 0)
+
     function Get-AnimationFrames {
         param([string]$key)
 
@@ -304,6 +332,8 @@ try {
 
         $script:skin = $key
         $statusPopup.IsOpen = $false
+        $thoughtImg.Visibility = [System.Windows.Visibility]::Collapsed
+        $codeImg.Visibility = [System.Windows.Visibility]::Collapsed
         $img.Width = $meta.W
         $img.Height = $meta.ImgH
         $script:bob.Y = 0
@@ -356,6 +386,7 @@ try {
         $now = $script:sw.ElapsedMilliseconds
 
         if ($SKINS[$script:skin].Kind -eq 'anim' -and
+            $script:agentState -eq 'idle' -and
             $script:animKey -eq 'idle' -and $script:loop -and $now -ge $script:nextVariation) {
             $pick = @('idle-look', 'idle-spout', 'swim') | Get-Random
             Set-Animation $pick $false 'idle'
@@ -418,6 +449,17 @@ try {
         }
         $statusText.Text = $text
         $statusPopup.IsOpen = $true
+    }
+
+    function Set-AgentOverlay {
+        param([string]$kind)
+
+        $thoughtImg.Visibility = [System.Windows.Visibility]::Collapsed
+        $codeImg.Visibility = [System.Windows.Visibility]::Collapsed
+
+        if ($SKINS[$script:skin].Kind -ne 'anim') { return }
+        if ($kind -eq 'thinking') { $thoughtImg.Visibility = [System.Windows.Visibility]::Visible }
+        elseif ($kind -eq 'working') { $codeImg.Visibility = [System.Windows.Visibility]::Visible }
     }
 
     function Get-DshStatus {
@@ -500,14 +542,14 @@ try {
             if ($state -eq 'thinking' -or $state -eq 'working') {
                 $script:doneUntil = 0
                 Set-StatusBubble '…'
+                Set-AgentOverlay $state
                 if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing')) {
-                    $key = 'thinking'
-                    if ($state -eq 'working') { $key = 'typing' }
-                    Set-Animation $key $true
+                    Set-Animation 'idle' $true
                 }
                 $script:lastInput = $now
             } elseif ($state -eq 'done') {
                 Set-StatusBubble '✓ 完成'
+                Set-AgentOverlay ''
                 $script:doneUntil = $now + 3200
                 if ($null -ne $best) { $script:doneEventTs = $best.ts } else { $script:doneEventTs = $now }
                 if ($script:animKey -in @('idle', 'thinking', 'typing')) {
@@ -515,6 +557,7 @@ try {
                 }
             } else {
                 Set-StatusBubble ''
+                Set-AgentOverlay ''
                 $script:doneUntil = 0
                 if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing')) {
                     Set-Animation 'idle' $true
@@ -526,16 +569,15 @@ try {
             $script:agentState = 'idle'
             $script:doneUntil = 0
             Set-StatusBubble ''
+            Set-AgentOverlay ''
             if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'happy')) {
                 Set-Animation 'idle' $true
             }
         }
 
         if (($script:agentState -eq 'thinking' -or $script:agentState -eq 'working') -and
-            $SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -eq 'idle') {
-            $key = 'thinking'
-            if ($script:agentState -eq 'working') { $key = 'typing' }
-            Set-Animation $key $true
+            $SKINS[$script:skin].Kind -eq 'anim') {
+            Set-AgentOverlay $script:agentState
         }
     }
 
