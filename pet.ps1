@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿param(
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿param(
     [double]$Scale = 0.75
 )
 
@@ -221,6 +221,28 @@ try {
         return $null
     }
 
+    function Get-StartAppAumid {
+        param([string]$NamePattern, [string]$IdPattern)
+
+        try {
+            $app = Get-StartApps | Where-Object { $_.Name -like $NamePattern -or $_.AppID -like $IdPattern } | Select-Object -First 1
+            if ($null -ne $app) { return [string]$app.AppID }
+        } catch { }
+        return $null
+    }
+
+    function Start-Terminal {
+        param([string]$cmd, [string]$workDir)
+
+        $wt = Get-Command wt.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($null -ne $wt) {
+            $wtArgs = '-d "' + $workDir + '" powershell.exe -ExecutionPolicy Bypass -NoExit -Command "' + $cmd + '"'
+            Start-Process -FilePath $wt.Source -ArgumentList $wtArgs
+        } else {
+            Start-Process -FilePath 'powershell.exe' -ArgumentList @('-ExecutionPolicy', 'Bypass', '-NoExit', '-Command', "Set-Location '$workDir'; $cmd") -WorkingDirectory $workDir
+        }
+    }
+
     function Start-Agent {
         $script:lastInput = $script:sw.ElapsedMilliseconds
 
@@ -230,11 +252,15 @@ try {
 
             if ($script:skin -eq 'codex') {
                 $aumid = Get-ChatGptAumid
-                if (-not $aumid) {
-                    [System.Windows.MessageBox]::Show('没找到 ChatGPT 桌面版，请先安装并登录。', '鲸娘桌宠', 'OK', 'Warning') | Out-Null
-                    return
-                }
-                Start-Process -FilePath "shell:AppsFolder\$aumid"
+                if ($aumid) { Start-Process -FilePath "shell:AppsFolder\$aumid"; return }
+
+                $exe = Resolve-AgentCommand 'codex' @(
+                    (Join-Path $env:APPDATA 'npm\codex.cmd'),
+                    (Join-Path $env:USERPROFILE '.local\bin\codex.exe')
+                )
+                if ($exe) { Start-Terminal "& '$exe'" $workDir; return }
+
+                Start-Process -FilePath 'https://chatgpt.com/codex'
                 return
             }
 
@@ -244,31 +270,41 @@ try {
                     (Join-Path $env:APPDATA 'npm\claude.cmd'),
                     (Join-Path $env:LOCALAPPDATA 'Programs\claude\claude.exe')
                 )
-                if (-not $exe) {
-                    [System.Windows.MessageBox]::Show('没找到 Claude Code，请先安装 claude CLI 或把它加入 PATH。', '鲸娘桌宠', 'OK', 'Warning') | Out-Null
-                    return
-                }
-                $cmd = "& '$exe'"
-            } else {
-                $exe = Resolve-AgentCommand 'dsh' @(
+                if ($exe) { Start-Terminal "& '$exe'" $workDir; return }
+
+                $aumid = Get-StartAppAumid '*Claude*' '*Claude*'
+                if ($aumid) { Start-Process -FilePath "shell:AppsFolder\$aumid"; return }
+
+                Start-Process -FilePath 'https://claude.ai'
+                return
+            }
+
+            $dst = Resolve-AgentCommand 'dst' @(
+                (Join-Path $env:APPDATA 'npm\dst.cmd'),
+                (Join-Path $env:APPDATA 'npm\dst.ps1')
+            )
+            if ($dst) { Start-Terminal "& '$dst'" $workDir; return }
+
+            if (Test-Path -LiteralPath (Join-Path $dshHome 'profiles\web')) {
+                $dsh = Resolve-AgentCommand 'dsh' @(
                     (Join-Path $env:APPDATA 'npm\dsh.cmd'),
                     (Join-Path $env:APPDATA 'npm\dsh.ps1'),
                     (Join-Path $env:ProgramFiles 'nodejs\dsh.cmd')
                 )
-                if (-not $exe) {
-                    [System.Windows.MessageBox]::Show('没找到 dsh，请先安装 DSH 或把它加入 PATH。', '鲸娘桌宠', 'OK', 'Warning') | Out-Null
-                    return
-                }
-                $cmd = "& '$exe'"
+                if ($dsh) { Start-Terminal "& '$dsh' web" $workDir; return }
             }
 
-            $wt = Get-Command wt.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($null -ne $wt) {
-                $wtArgs = '-d "' + $workDir + '" powershell.exe -ExecutionPolicy Bypass -NoExit -Command "' + $cmd + '"'
-                Start-Process -FilePath $wt.Source -ArgumentList $wtArgs
-            } else {
-                Start-Process -FilePath 'powershell.exe' -ArgumentList @('-ExecutionPolicy', 'Bypass', '-NoExit', '-Command', "Set-Location '$workDir'; $cmd") -WorkingDirectory $workDir
-            }
+            $aumid = Get-StartAppAumid '*DeepSeek*' 'com.deepseek.dsh'
+            if ($aumid) { Start-Process -FilePath "shell:AppsFolder\$aumid"; return }
+
+            $dsh = Resolve-AgentCommand 'dsh' @(
+                (Join-Path $env:APPDATA 'npm\dsh.cmd'),
+                (Join-Path $env:APPDATA 'npm\dsh.ps1'),
+                (Join-Path $env:ProgramFiles 'nodejs\dsh.cmd')
+            )
+            if ($dsh) { Start-Terminal "& '$dsh'" $workDir; return }
+
+            [System.Windows.MessageBox]::Show('没找到 DSH 入口（dst / web / desktop / dsh）。', '鲸娘桌宠', 'OK', 'Warning') | Out-Null
         } catch {
             [System.Windows.MessageBox]::Show("启动失败：$($_.Exception.Message)", '鲸娘桌宠', 'OK', 'Warning') | Out-Null
         }

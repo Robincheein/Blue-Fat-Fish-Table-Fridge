@@ -15,7 +15,7 @@ DSH 内置像素看板娘的 Windows 桌宠。纯 PowerShell + WPF（.NET Framew
 - 换形象：鲸娘 / Claude 娘 / Codex 娘，选择会记住
 - 屏幕四边边界，位置记忆
 - 状态联动：DSH 会话、Claude Code 的思考 / 工具 / 完成状态实时映射到宠物
-- 启动器：按当前形象启动 `dsh` / `claude`（Claude Code）/ ChatGPT 桌面版
+- 启动器：按形象自动探测本机入口（DSH 的 dst / 网页 / 桌面 / CLI，Claude 的 CLI / 桌面 / 网页，Codex 的桌面 / CLI / 网页）
 
 ## 快速开始
 
@@ -68,17 +68,18 @@ Claude Code 的 hooks 会把工具名和文件路径一起写进状态文件，�
 
 右键菜单第一项会跟着当前形象变：
 
-| 形象 | 启动 | 方式 |
+| 形象 | 启动 | 选择顺序 |
 | --- | --- | --- |
-| 鲸娘 | `dsh` | 新开 Windows Terminal 标签，工作目录 `$launchDir` |
-| Claude 娘 | `claude`（Claude Code） | 同上 |
-| Codex 娘 | ChatGPT 桌面版 | `shell:AppsFolder\<AUMID>` |
+| 鲸娘 | DSH | `dst` → 网页版（`dsh web`）→ 桌面版（DeepSeek Harness）→ `dsh` CLI |
+| Claude 娘 | Claude Code | `claude` CLI → Claude 桌面版 → claude.ai 网页版 |
+| Codex 娘 | Codex | ChatGPT 桌面版 → `codex` CLI → chatgpt.com/codex 网页版 |
 
-三个目标都会自动探测：
+每个目标都会按本机情况自动挑入口：
 
-- `dsh` / `claude`：先找 PATH，再找 npm 全局目录（`%APPDATA%\npm`）和常见安装位置
-- ChatGPT 桌面版：用 `Get-StartApps` 自动找 AUMID
-- `$launchDir` 不存在时回退到用户主目录
+- DSH：优先 `dst`；没有就启动网页版（`dsh web`）；再没有就启动桌面版；最后用 `dsh` CLI
+- Claude：优先 `claude` CLI；没有就找 Claude 桌面版；最后打开 claude.ai
+- Codex：优先 ChatGPT 桌面版；没有就找 `codex` CLI；最后打开 chatgpt.com/codex
+- CLI 会先找 PATH，再找 npm 全局目录和常见安装位置；`$launchDir` 不存在时回退到用户主目录
 
 配置在 `pet.ps1` 顶部：
 

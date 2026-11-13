@@ -15,7 +15,7 @@ Three characters: **Whale Girl** (22 animations, 267 frames), **Claude Girl**, a
 - Skin switching (Whale / Claude / Codex), remembered between launches
 - Screen-edge clamping and position memory
 - Live agent status: DSH sessions and Claude Code thinking / tool / done states
-- Launcher: starts `dsh`, Claude Code (`claude`), or the ChatGPT desktop app based on the current skin
+- Launcher: detects the best local entry for the skin (DSH: dst / web / desktop / CLI; Claude: CLI / desktop / web; Codex: desktop / CLI / web)
 
 ## Quick start
 
@@ -68,17 +68,18 @@ The status file is `%LOCALAPPDATA%\dafeiyu-pet\claude-status.json`.
 
 The first context-menu item follows the current skin:
 
-| Skin | Launch | How |
+| Skin | Launch | Order |
 | --- | --- | --- |
-| Whale Girl | `dsh` | New Windows Terminal tab in `$launchDir` |
-| Claude Girl | `claude` (Claude Code) | Same |
-| Codex Girl | ChatGPT desktop app | `shell:AppsFolder\<AUMID>` |
+| Whale Girl | DSH | `dst` → web profile (`dsh web`) → DeepSeek Harness desktop → `dsh` CLI |
+| Claude Girl | Claude Code | `claude` CLI → Claude desktop app → claude.ai |
+| Codex Girl | Codex | ChatGPT desktop app → `codex` CLI → chatgpt.com/codex |
 
-All three targets are auto-detected:
+Each target is detected in order:
 
-- `dsh` / `claude`: checked on PATH, then the npm global folder (`%APPDATA%\npm`) and common install paths
-- ChatGPT desktop app: AUMID discovered via `Get-StartApps`
-- If `$launchDir` does not exist, the user's home folder is used
+- DSH: prefer `dst`; else the web profile (`dsh web`); else the DeepSeek Harness desktop app; finally the `dsh` CLI
+- Claude: prefer the `claude` CLI; else the Claude desktop app; finally open claude.ai
+- Codex: prefer the ChatGPT desktop app; else the `codex` CLI; finally open chatgpt.com/codex
+- CLIs are looked up on PATH, then npm global and common install paths; `$launchDir` falls back to the home folder
 
 Configuration at the top of `pet.ps1`:
 
