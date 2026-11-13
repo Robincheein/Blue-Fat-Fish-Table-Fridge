@@ -1188,5 +1188,57 @@
       "dur": 600000,
       "file": "00.png"
     }
+  ],
+  "doze": [
+    {
+      "dur": 330,
+      "file": "00.png"
+    },
+    {
+      "dur": 330,
+      "file": "01.png"
+    },
+    {
+      "dur": 330,
+      "file": "02.png"
+    },
+    {
+      "dur": 330,
+      "file": "03.png"
+    },
+    {
+      "dur": 330,
+      "file": "04.png"
+    },
+    {
+      "dur": 330,
+      "file": "05.png"
+    }
+  ],
+  "wakeup": [
+    {
+      "dur": 120,
+      "file": "00.png"
+    },
+    {
+      "dur": 100,
+      "file": "01.png"
+    },
+    {
+      "dur": 100,
+      "file": "02.png"
+    },
+    {
+      "dur": 110,
+      "file": "03.png"
+    },
+    {
+      "dur": 200,
+      "file": "04.png"
+    },
+    {
+      "dur": 70,
+      "file": "05.png"
+    }
   ]
 }
