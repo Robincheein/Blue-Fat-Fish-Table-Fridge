@@ -1,4 +1,4 @@
-﻿param(
+﻿﻿﻿﻿﻿param(
     [double]$Scale = 0.75
 )
 
@@ -23,6 +23,15 @@ $staticH = [math]::Round(288 * $Scale)
 #   Codex 娘  -> ChatGPT 桌面版
 $launchDir = 'E:\desktop\CODE'
 $chatgptAppId = 'OpenAI.Codex_2p2nqsd0c76g0!App'
+
+# --------------------------------------------------------------- agent status
+# DSH：会话投影里的 workingActivity.phase
+# Claude Code：hooks 写的本地状态文件
+$dshHome = $env:DSH_HOME
+if (-not $dshHome) { $dshHome = Join-Path $env:USERPROFILE '.dsh' }
+$dshCacheDir = Join-Path $dshHome 'storages\session_projcache\sessions'
+$petStatusDir = Join-Path $env:LOCALAPPDATA 'dafeiyu-pet'
+$claudeStatusPath = Join-Path $petStatusDir 'claude-status.json'
 
 $SKINS = @{
     whale = @{
@@ -102,6 +111,31 @@ try {
     $script:bob = New-Object System.Windows.Media.TranslateTransform(0, 0)
     $img.RenderTransform = $script:bob
 
+    # ------------------------------------------------------------ status bubble
+    $statusBorder = New-Object System.Windows.Controls.Border
+    $statusBorder.Background = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromArgb(240, 6, 14, 30))
+    $statusBorder.BorderBrush = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromArgb(170, 150, 180, 255))
+    $statusBorder.BorderThickness = New-Object System.Windows.Thickness -ArgumentList 1
+    $statusBorder.Padding = New-Object System.Windows.Thickness -ArgumentList 9, 5, 9, 5
+
+    $statusText = New-Object System.Windows.Controls.TextBlock
+    $statusText.FontFamily = New-Object System.Windows.Media.FontFamily -ArgumentList 'Microsoft YaHei UI'
+    $statusText.FontSize = 13
+    $statusText.Foreground = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromRgb(232, 242, 255))
+    $statusText.Text = ''
+    $statusBorder.Child = $statusText
+
+    $statusPopup = New-Object System.Windows.Controls.Primitives.Popup
+    $statusPopup.Child = $statusBorder
+    $statusPopup.PlacementTarget = $win
+    $statusPopup.Placement = [System.Windows.Controls.Primitives.PlacementMode]::Top
+    $statusPopup.VerticalOffset = -10
+    $statusPopup.HorizontalOffset = 60
+    $statusPopup.AllowsTransparency = $true
+    $statusPopup.StaysOpen = $true
+    $statusPopup.IsHitTestVisible = $false
+    $statusPopup.PopupAnimation = [System.Windows.Controls.Primitives.PopupAnimation]::None
+
     function Clamp-ToScreen {
         $work = [System.Windows.SystemParameters]::WorkArea
         $maxLeft = $work.Right - $win.Width
@@ -179,6 +213,13 @@ try {
     $script:dragging = $false
     $script:dpi = 1.0
     $script:frameCache = @{}
+
+    $script:agentState = 'idle'
+    $script:agentSource = ''
+    $script:agentTs = 0
+    $script:doneUntil = 0
+    $script:doneEventTs = 0
+    $script:lastStatusAt = 0
 
     function Load-Bitmap {
         param([string]$path)
@@ -262,6 +303,7 @@ try {
         }
 
         $script:skin = $key
+        $statusPopup.IsOpen = $false
         $img.Width = $meta.W
         $img.Height = $meta.ImgH
         $script:bob.Y = 0
@@ -322,6 +364,7 @@ try {
         }
 
         if ($SKINS[$script:skin].Kind -eq 'anim' -and
+            $script:agentState -eq 'idle' -and
             $script:animKey -ne 'sleeping' -and $script:animKey -ne 'waking' -and
             (($now - $script:lastInput) -gt 180000)) {
             Set-Animation 'sleeping' $true
@@ -357,6 +400,142 @@ try {
             Set-Animation 'poke-left' $false 'idle'
         } else {
             Set-Animation 'poke-right' $false 'idle'
+        }
+    }
+
+    # ------------------------------------------------------------ agent status
+    function Set-StatusBubble {
+        param([string]$text)
+
+        if ($SKINS[$script:skin].Kind -eq 'anim') {
+            $statusPopup.IsOpen = $false
+            return
+        }
+
+        if ($null -eq $text -or $text -eq '') {
+            $statusPopup.IsOpen = $false
+            return
+        }
+        $statusText.Text = $text
+        $statusPopup.IsOpen = $true
+    }
+
+    function Get-DshStatus {
+        if (-not (Test-Path -LiteralPath $dshCacheDir)) { return $null }
+
+        try {
+            $file = Get-ChildItem -LiteralPath $dshCacheDir -File -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTime -Descending |
+                Select-Object -First 1
+            if ($null -eq $file) { return $null }
+            if (((Get-Date) - $file.LastWriteTime).TotalMinutes -gt 10) { return $null }
+
+            $j = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+            $activity = $j.record.rows.workingActivity.val
+            $phase = [string]$activity.tracker.phase
+            $state = 'idle'
+            if ($phase -eq 'thinking' -or $phase -eq 'waiting') { $state = 'thinking' }
+            elseif ($phase -eq 'tool') { $state = 'working' }
+            return @{ state = $state; ts = [double]$activity.updatedAt; source = 'dsh' }
+        } catch {
+            return $null
+        }
+    }
+
+    function Get-ClaudeStatus {
+        if (-not (Test-Path -LiteralPath $claudeStatusPath)) { return $null }
+
+        try {
+            $j = Get-Content -LiteralPath $claudeStatusPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            $ts = [double]$j.ts
+            $age = ([DateTimeOffset]::Now.ToUnixTimeMilliseconds() - $ts) / 1000.0
+            if ($age -gt 3600) { return $null }
+
+            $state = [string]$j.state
+            if ($state -eq 'thinking' -or $state -eq 'working' -or $state -eq 'done' -or $state -eq 'idle') {
+                return @{ state = $state; ts = $ts; source = 'claude' }
+            }
+            return $null
+        } catch {
+            return $null
+        }
+    }
+
+    function Update-AgentStatus {
+        $now = $script:sw.ElapsedMilliseconds
+        if (($now - $script:lastStatusAt) -lt 800) { return }
+        $script:lastStatusAt = $now
+
+        $best = $null
+        foreach ($s in @((Get-DshStatus), (Get-ClaudeStatus))) {
+            if ($null -eq $s) { continue }
+            if ($null -eq $best -or $s.ts -gt $best.ts) { $best = $s }
+        }
+
+        $state = 'idle'
+        $source = ''
+        if ($null -ne $best) {
+            $state = [string]$best.state
+            $source = [string]$best.source
+        }
+
+        $previous = $script:agentState
+
+        if ($previous -eq 'done' -and $now -lt $script:doneUntil) {
+            $state = 'done'
+        }
+
+        if ($state -eq 'done' -and $previous -ne 'done' -and $null -ne $best -and $best.ts -le $script:doneEventTs) {
+            $state = 'idle'
+        }
+
+        if ($state -eq 'idle' -and ($previous -eq 'thinking' -or $previous -eq 'working')) {
+            $state = 'done'
+        }
+
+        if ($state -ne $previous) {
+            $script:agentState = $state
+            $script:agentSource = $source
+
+            if ($state -eq 'thinking' -or $state -eq 'working') {
+                $script:doneUntil = 0
+                Set-StatusBubble '…'
+                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing')) {
+                    $key = 'thinking'
+                    if ($state -eq 'working') { $key = 'typing' }
+                    Set-Animation $key $true
+                }
+                $script:lastInput = $now
+            } elseif ($state -eq 'done') {
+                Set-StatusBubble '✓ 完成'
+                $script:doneUntil = $now + 3200
+                if ($null -ne $best) { $script:doneEventTs = $best.ts } else { $script:doneEventTs = $now }
+                if ($script:animKey -in @('idle', 'thinking', 'typing')) {
+                    Set-Animation 'happy' $false 'idle'
+                }
+            } else {
+                Set-StatusBubble ''
+                $script:doneUntil = 0
+                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing')) {
+                    Set-Animation 'idle' $true
+                }
+            }
+        }
+
+        if ($script:agentState -eq 'done' -and $script:doneUntil -gt 0 -and $now -gt $script:doneUntil) {
+            $script:agentState = 'idle'
+            $script:doneUntil = 0
+            Set-StatusBubble ''
+            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'happy')) {
+                Set-Animation 'idle' $true
+            }
+        }
+
+        if (($script:agentState -eq 'thinking' -or $script:agentState -eq 'working') -and
+            $SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -eq 'idle') {
+            $key = 'thinking'
+            if ($script:agentState -eq 'working') { $key = 'typing' }
+            Set-Animation $key $true
         }
     }
 
@@ -507,6 +686,10 @@ try {
     $timer.Interval = [TimeSpan]::FromMilliseconds(30)
     $timer.Add_Tick({ param($s, $e) Update-Animation })
 
+    $statusTimer = New-Object System.Windows.Threading.DispatcherTimer
+    $statusTimer.Interval = [TimeSpan]::FromMilliseconds(1000)
+    $statusTimer.Add_Tick({ param($s, $e) Update-AgentStatus })
+
     $win.Add_Loaded({
             param($s, $e)
             try {
@@ -516,12 +699,15 @@ try {
             }
             Clamp-ToScreen
             $timer.Start()
+            $statusTimer.Start()
+            Update-AgentStatus
         })
 
     $win.Add_Closing({
             param($s, $e)
             Save-PetState
             $timer.Stop()
+            $statusTimer.Stop()
         })
 
     Apply-Skin $initialSkin $false

@@ -38,9 +38,41 @@ $chatgptAppId = 'OpenAI.Codex_2p2nqsd0c76g0!App'
 
 没有 `wt.exe` 时会回退到 PowerShell 窗口；启动失败会弹一个提示框。
 
+## 状态联动
+
+宠物会跟着 agent 的状态走：
+
+| 状态 | 表现 |
+| --- | --- |
+| 思考 / 等首 token | 头顶冒「…」；鲸娘播放 thinking 动画 |
+| 调工具 / 写代码 | 头顶冒「…」；鲸娘播放 typing 动画 |
+| 一轮完成 | 头顶冒「✓ 完成」；鲸娘切开心，约 3 秒后恢复 |
+| 空闲 | 回到待机 |
+
+鲸娘用自带的像素 `thinking` / `typing` 动画（画面里本来就带思考泡泡），不再叠加文字框；
+Claude / Codex 娘没有这些动作帧，才用文字气泡。
+
+### DSH
+
+直接读 DSH 的会话投影（`$DSH_HOME/storages/session_projcache/sessions/*.json`）里的
+`workingActivity.tracker.phase`（`thinking` / `tool` / `idle`），不需要改 DSH。
+
+### Claude Code
+
+用 hooks 写状态文件（已合并进 `%CLAUDE_CONFIG_DIR%\settings.json`，原文件备份为 `settings.json.bak-*`）：
+
+- `UserPromptSubmit` → thinking
+- `PreToolUse` → working
+- `Stop` → done
+- `SessionEnd` → idle
+
+状态文件：`%LOCALAPPDATA%\dafeiyu-pet\claude-status.json`。
+Claude Code 需要重启一次才会加载新 hooks。
+
 ## 版本（git）
 
-- `v2-launcher`：当前版本 —— 三位形象 + 启动入口
+- `v3-status`：当前 —— 三位形象 + 启动入口 + DSH / Claude 状态联动
+- `v2-launcher`：三位形象 + 启动入口
 - `v1-original`：最初的鲸娘版 + 屏幕边界
 - `experiments`：带爱心、程序动画、闭眼帧的实验版
 
@@ -54,5 +86,6 @@ git checkout <tag> -- .
 
 - `pet.ps1` — 宠物本体（PowerShell + WPF）
 - `launch.vbs` — 无窗口启动器
+- `claude-status.ps1` — Claude Code hooks 调用的状态写入脚本
 - `assets/` — 鲸娘 267 帧 + Claude / Codex 立绘
 - `pet-state.json` — 记住位置和当前形象（运行时生成）
