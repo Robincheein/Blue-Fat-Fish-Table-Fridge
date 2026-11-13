@@ -42,11 +42,13 @@ The 267 sprite frames load in about a second.
 
 | State | Pet |
 | --- | --- |
-| Thinking / waiting for first token | Whale Girl plays her `thinking` animation (which already contains a pixel thought bubble) |
-| Tool use / coding | Whale Girl plays her `typing` animation |
+| Thinking / waiting for first token | Whale Girl keeps her normal face and shows a pixel thought bubble |
+| Tool use / coding | Whale Girl keeps her normal face and shows a pixel `</>` marker |
 | Turn complete | Whale Girl switches to happy for about 3 seconds |
-| Claude / Codex Girl | No animation frames, so a text bubble shows "…" or "✓ done" |
+| Claude / Codex Girl | No pixel bubble assets, so a text bubble shows "…" or "✓ done" |
 | Idle | Back to idle |
+
+Whale Girl keeps her normal expression during thinking / tool use and only overlays a pixel bubble.
 
 **DSH**: reads the newest `workingActivity.tracker.phase` (`thinking` / `tool` / `idle`) from
 `$DSH_HOME/storages/session_projcache/sessions/*.json`. No DSH changes required.

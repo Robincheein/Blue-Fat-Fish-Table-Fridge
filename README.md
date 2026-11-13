@@ -42,11 +42,13 @@ DSH 内置像素看板娘的 Windows 桌宠。纯 PowerShell + WPF（.NET Framew
 
 | 状态 | 表现 |
 | --- | --- |
-| 思考 / 等首 token | 鲸娘播放 `thinking` 动画（画面自带像素思考泡泡） |
-| 调工具 / 写代码 | 鲸娘播放 `typing` 动画 |
+| 思考 / 等首 token | 鲸娘保持平常表情，头顶浮出像素思考泡泡 |
+| 调工具 / 写代码 | 鲸娘保持平常表情，头顶浮出像素 `</>` 符号 |
 | 一轮完成 | 鲸娘切开心，约 3 秒后回待机 |
-| Claude / Codex 娘 | 没有动作帧，用「…」/「✓ 完成」文字气泡表示状态 |
+| Claude / Codex 娘 | 没有像素气泡素材，用「…」/「✓ 完成」文字气泡表示状态 |
 | 空闲 | 回到待机 |
+
+鲸娘的思考 / 工具状态只叠加像素气泡，不切换表情（避开素材里半睁眼的 thinking / typing 表情）。
 
 **DSH**：直接读 `$DSH_HOME/storages/session_projcache/sessions/*.json` 里最新的
 `workingActivity.tracker.phase`（`thinking` / `tool` / `idle`），不需要改 DSH。
