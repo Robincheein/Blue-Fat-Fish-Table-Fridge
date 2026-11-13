@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿param(
+﻿﻿﻿﻿﻿﻿﻿﻿param(
     [double]$Scale = 0.75
 )
 
@@ -297,6 +297,9 @@ try {
     $script:doneEventTs = 0
     $script:lastStatusAt = 0
     $script:chatgptAumidCache = ''
+    $script:overlayKind = ''
+    $script:overlayFrame = 0
+    $script:overlayDeadline = 0
 
     function Load-Bitmap {
         param([string]$path)
@@ -310,15 +313,32 @@ try {
         return $bmp
     }
 
-    $thoughtImg.Source = Load-Bitmap (Join-Path $assetRoot 'status\thinking-bubble.png')
-    $thoughtImg.Width = [math]::Round(100 * $Scale)
-    $thoughtImg.Height = [math]::Round(88 * $Scale)
-    $thoughtImg.Margin = New-Object System.Windows.Thickness -ArgumentList @([math]::Round(200 * $Scale), [math]::Round(2 * $Scale), 0, 0)
+    $script:overlayFrames = @{}
+    $script:overlayDurs = @{}
+    foreach ($k in @('thinking', 'working')) {
+        $srcKey = 'thinking'
+        if ($k -eq 'working') { $srcKey = 'typing' }
 
-    $codeImg.Source = Load-Bitmap (Join-Path $assetRoot 'status\working-code.png')
-    $codeImg.Width = [math]::Round(90 * $Scale)
-    $codeImg.Height = [math]::Round(60 * $Scale)
-    $codeImg.Margin = New-Object System.Windows.Thickness -ArgumentList @([math]::Round(200 * $Scale), [math]::Round(10 * $Scale), 0, 0)
+        $frames = @()
+        foreach ($f in (Get-ChildItem (Join-Path $assetRoot ('status\' + $k)) -Filter '*.png' | Sort-Object Name)) {
+            $frames += (Load-Bitmap $f.FullName)
+        }
+        $script:overlayFrames[$k] = $frames
+
+        $durs = @()
+        foreach ($fr in $timings.$srcKey) { $durs += [int]$fr.dur }
+        $script:overlayDurs[$k] = $durs
+    }
+
+    $thoughtImg.Source = $script:overlayFrames['thinking'][0]
+    $thoughtImg.Width = [math]::Round(105 * $Scale)
+    $thoughtImg.Height = [math]::Round(95 * $Scale)
+    $thoughtImg.Margin = New-Object System.Windows.Thickness -ArgumentList @([math]::Round(195 * $Scale), [math]::Round(8 * $Scale), 0, 0)
+
+    $codeImg.Source = $script:overlayFrames['working'][0]
+    $codeImg.Width = [math]::Round(105 * $Scale)
+    $codeImg.Height = [math]::Round(70 * $Scale)
+    $codeImg.Margin = New-Object System.Windows.Thickness -ArgumentList @([math]::Round(195 * $Scale), [math]::Round(5 * $Scale), 0, 0)
 
     function Get-AnimationFrames {
         param([string]$key)
@@ -393,6 +413,7 @@ try {
         $statusPopup.IsOpen = $false
         $thoughtImg.Visibility = [System.Windows.Visibility]::Collapsed
         $codeImg.Visibility = [System.Windows.Visibility]::Collapsed
+        $script:overlayKind = ''
         $img.Width = $meta.W
         $img.Height = $meta.ImgH
         $script:bob.Y = 0
@@ -513,12 +534,51 @@ try {
     function Set-AgentOverlay {
         param([string]$kind)
 
+        if ($kind -eq $script:overlayKind) { return }
+
         $thoughtImg.Visibility = [System.Windows.Visibility]::Collapsed
         $codeImg.Visibility = [System.Windows.Visibility]::Collapsed
+        $script:overlayKind = ''
 
         if ($SKINS[$script:skin].Kind -ne 'anim') { return }
-        if ($kind -eq 'thinking') { $thoughtImg.Visibility = [System.Windows.Visibility]::Visible }
-        elseif ($kind -eq 'working') { $codeImg.Visibility = [System.Windows.Visibility]::Visible }
+
+        if ($kind -eq 'thinking') {
+            $thoughtImg.Source = $script:overlayFrames['thinking'][0]
+            $thoughtImg.Visibility = [System.Windows.Visibility]::Visible
+            $script:overlayKind = 'thinking'
+            $script:overlayFrame = 0
+            $script:overlayDeadline = 0
+        } elseif ($kind -eq 'working') {
+            $codeImg.Source = $script:overlayFrames['working'][0]
+            $codeImg.Visibility = [System.Windows.Visibility]::Visible
+            $script:overlayKind = 'working'
+            $script:overlayFrame = 0
+            $script:overlayDeadline = 0
+        }
+    }
+
+    function Update-OverlayAnimation {
+        if ($SKINS[$script:skin].Kind -ne 'anim') { return }
+
+        $kind = $script:overlayKind
+        if ($kind -ne 'thinking' -and $kind -ne 'working') { return }
+
+        $frames = $script:overlayFrames[$kind]
+        $durs = $script:overlayDurs[$kind]
+        if ($null -eq $frames -or $frames.Count -eq 0) { return }
+
+        $now = $script:sw.ElapsedMilliseconds
+        if ($now -lt $script:overlayDeadline) { return }
+
+        $script:overlayFrame++
+        if ($script:overlayFrame -ge $frames.Count) { $script:overlayFrame = 0 }
+
+        if ($kind -eq 'working') { $codeImg.Source = $frames[$script:overlayFrame] }
+        else { $thoughtImg.Source = $frames[$script:overlayFrame] }
+
+        $d = 200
+        if ($script:overlayFrame -lt $durs.Count) { $d = $durs[$script:overlayFrame] }
+        $script:overlayDeadline = $now + $d
     }
 
     function Get-DshStatus {
@@ -791,6 +851,10 @@ try {
     $statusTimer.Interval = [TimeSpan]::FromMilliseconds(1000)
     $statusTimer.Add_Tick({ param($s, $e) Update-AgentStatus })
 
+    $overlayTimer = New-Object System.Windows.Threading.DispatcherTimer
+    $overlayTimer.Interval = [TimeSpan]::FromMilliseconds(80)
+    $overlayTimer.Add_Tick({ param($s, $e) Update-OverlayAnimation })
+
     $win.Add_Loaded({
             param($s, $e)
             try {
@@ -801,6 +865,7 @@ try {
             Clamp-ToScreen
             $timer.Start()
             $statusTimer.Start()
+            $overlayTimer.Start()
             Update-AgentStatus
         })
 
@@ -809,6 +874,7 @@ try {
             Save-PetState
             $timer.Stop()
             $statusTimer.Stop()
+            $overlayTimer.Stop()
         })
 
     Apply-Skin $initialSkin $false
