@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿param(
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿param(
     [double]$Scale = 0.75
 )
 
@@ -15,7 +15,7 @@ $timingsPath = Join-Path $assetRoot 'timings.json'
 $errorLog = Join-Path $root 'pet-error.log'
 $statePath = Join-Path $root 'pet-state.json'
 
-$staticH = [math]::Round(288 * $Scale)
+$staticH = [math]::Round(288 * $Scale * 0.85)
 
 # 启动目标：按当前形象决定
 #   鲸娘      -> dsh
@@ -753,7 +753,7 @@ try {
                 $script:doneUntil = 0
                 Set-StatusBubble '…'
                 Set-AgentOverlay $state
-                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup')) {
+                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze')) {
                     Set-Animation 'idle' $true
                 }
                 $script:lastInput = $now
@@ -762,14 +762,14 @@ try {
                 Set-AgentOverlay ''
                 $script:doneUntil = $now + 3200
                 if ($null -ne $best) { $script:doneEventTs = $best.ts } else { $script:doneEventTs = $now }
-                if ($script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup')) {
+                if ($script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze')) {
                     Set-Animation 'happy' $false 'idle'
                 }
             } else {
                 Set-StatusBubble ''
                 Set-AgentOverlay ''
                 $script:doneUntil = 0
-                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup')) {
+                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze')) {
                     Set-Animation 'idle' $true
                 }
             }
@@ -819,12 +819,12 @@ try {
 
         if ($kind -eq 'working') {
             Set-AgentOverlay ''
-            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup')) {
+            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze')) {
                 if ($script:animKey -ne 'typing') { Set-Animation 'typing' $true }
             }
         } elseif ($kind -eq 'docs') {
             Set-AgentOverlay 'docs'
-            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup')) {
+            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze')) {
                 if ($script:animKey -ne 'typing-homework') { Set-Animation 'typing-homework' $true }
             }
         } elseif ($kind -eq 'rice' -or $kind -eq 'fish') {
@@ -835,12 +835,12 @@ try {
         } elseif ($kind -eq 'waiting') {
             if ($SKINS[$script:skin].Kind -ne 'anim') { Set-StatusBubble '？' }
             Set-AgentOverlay 'waiting'
-            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup')) {
+            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze')) {
                 if ($script:animKey -ne 'idle') { Set-Animation 'idle' $true }
             }
         } elseif ($kind -ne '') {
             Set-AgentOverlay $kind
-            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup')) {
+            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze')) {
                 if ($script:animKey -ne 'idle') { Set-Animation 'idle' $true }
             }
         } else {
