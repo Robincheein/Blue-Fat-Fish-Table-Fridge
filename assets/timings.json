@@ -1183,12 +1183,6 @@
       "file": "02.png"
     }
   ],
-  "eyes-closed": [
-    {
-      "dur": 600000,
-      "file": "00.png"
-    }
-  ],
   "doze": [
     {
       "dur": 330,
