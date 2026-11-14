@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿param(
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿param(
     [double]$Scale = 0.75
 )
 
@@ -589,6 +589,10 @@ try {
         if ($SKINS[$script:skin].Kind -ne 'anim') { return }
 
         $src = $null
+        if ($kind -ne '' -and $script:animKey -eq 'sleeping') {
+            Wake-Pet
+        }
+
         if ($kind -eq 'working') {
             $codeImg.Source = $script:overlayFrames['working'][0]
             $codeImg.Visibility = [System.Windows.Visibility]::Visible
