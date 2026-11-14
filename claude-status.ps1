@@ -6,7 +6,7 @@ New-Item -ItemType Directory -Force -Path $dir | Out-Null
 $tool = ''
 $file = ''
 
-if ($State -eq 'working' -and [Console]::IsInputRedirected) {
+if ([Console]::IsInputRedirected) {
     try {
         $raw = [Console]::In.ReadToEnd()
         if ($raw) {
@@ -16,6 +16,12 @@ if ($State -eq 'working' -and [Console]::IsInputRedirected) {
                 $file = [string]$payload.tool_input.file_path
                 if (-not $file) { $file = [string]$payload.tool_input.path }
                 if (-not $file) { $file = [string]$payload.tool_input.notebook_path }
+            }
+            if ([string]$payload.hook_event_name -eq 'Notification') {
+                $msg = [string]$payload.message
+                if ($msg -match 'permission|approve|confirm|waiting|input|question|授权|确认|等待|回答') {
+                    $State = 'waiting'
+                }
             }
         }
     } catch { }

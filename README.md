@@ -50,6 +50,7 @@ DSH 内置像素看板娘的 Windows 桌宠。纯 PowerShell + WPF（.NET Framew
 | 想太久（> 45 秒） | 泡泡里换成大碗白米饭，慢慢闭眼，进入会呼吸的打瞌睡（没有 zzz） |
 | 想更久（> 90 秒） | 泡泡里换成小鱼（摸鱼），继续打瞌睡 |
 | 打瞌睡时 | 随机 12–28 秒后突然惊醒，回到普通思考状态，过一会儿再慢慢睡回去 |
+| 等你确认 / 回答 | 歪头，头顶冒像素问号「？」 |
 | 一轮完成 | 鲸娘切开心，约 3 秒后回待机 |
 | Claude / Codex 娘 | 没有这些动作帧，用「…」/「✓ 完成」文字气泡表示状态 |
 | 空闲 | 回到待机 |
@@ -60,10 +61,12 @@ Claude Code 的 hooks 会把工具名和文件路径一起写进状态文件，�
 
 **DSH**：直接读 `$DSH_HOME/storages/session_projcache/sessions/*.json` 里最新的
 `workingActivity.tracker.phase`（`thinking` / `tool` / `idle`），不需要改 DSH。
+有活跃的 `userQuestions` 或非空 `waitingReason` 时，切成「等你确认 / 回答」状态。
 
 **Claude Code**：运行一次 `install-claude-hooks.ps1`，它会自动备份并合并 hooks 进
 `%CLAUDE_CONFIG_DIR%\settings.json`，然后重启 Claude Code 即可。
 状态写在 `%LOCALAPPDATA%\dafeiyu-pet\claude-status.json`。
+`Notification` 里带 permission / waiting / input 等提示时，会切成「等你确认」状态。
 
 ## 启动映射
 

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿param(
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿param(
     [double]$Scale = 0.75
 )
 
@@ -129,7 +129,11 @@ try {
     [void]$grid.Children.Add($codeImg)
 
     $script:bob = New-Object System.Windows.Media.TranslateTransform(0, 0)
-    $img.RenderTransform = $script:bob
+    $script:tilt = New-Object System.Windows.Media.RotateTransform(0)
+    $script:trans = New-Object System.Windows.Media.TransformGroup
+    [void]$script:trans.Children.Add($script:bob)
+    [void]$script:trans.Children.Add($script:tilt)
+    $img.RenderTransform = $script:trans
 
     # ------------------------------------------------------------ status bubble
     $statusBorder = New-Object System.Windows.Controls.Border
@@ -371,7 +375,7 @@ try {
         $script:overlayDurs[$k] = $durs
     }
 
-    foreach ($k in @('docs', 'web', 'rice', 'fish')) {
+    foreach ($k in @('docs', 'web', 'rice', 'fish', 'waiting')) {
         $script:overlayFrames[$k] = @((Load-Bitmap (Join-Path $assetRoot ('status\' + $k + '.png'))))
         $script:overlayDurs[$k] = @(600000)
     }
@@ -462,6 +466,9 @@ try {
         $script:overlayKind = ''
         $img.Width = $meta.W
         $img.Height = $meta.ImgH
+        $script:tilt.CenterX = $meta.W / 2
+        $script:tilt.CenterY = $meta.ImgH * 0.62
+        $script:tilt.Angle = 0
         $script:bob.Y = 0
 
         if ($meta.Kind -eq 'anim') {
@@ -647,6 +654,11 @@ try {
 
             $j = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
             $activity = $j.record.rows.workingActivity.val
+            $activeQuestions = $j.record.rows.userQuestions.val.questions.active
+            $waitingReason = [string]$activity.tracker.waitingReason
+            if ((@($activeQuestions).Count -gt 0) -or $waitingReason) {
+                return @{ state = 'waiting'; ts = [double]$activity.updatedAt; source = 'dsh'; tool = ''; file = '' }
+            }
             $phase = [string]$activity.tracker.phase
             $state = 'idle'
             if ($phase -eq 'thinking' -or $phase -eq 'waiting') { $state = 'thinking' }
@@ -674,7 +686,7 @@ try {
             if ($age -gt 3600) { return $null }
 
             $state = [string]$j.state
-            if ($state -eq 'thinking' -or $state -eq 'working' -or $state -eq 'done' -or $state -eq 'idle') {
+            if ($state -eq 'thinking' -or $state -eq 'working' -or $state -eq 'done' -or $state -eq 'idle' -or $state -eq 'waiting') {
                 return @{ state = $state; ts = $ts; source = 'claude'; tool = [string]$j.tool; file = [string]$j.file }
             }
             return $null
@@ -727,7 +739,7 @@ try {
             $state = 'idle'
         }
 
-        if ($state -eq 'idle' -and ($previous -eq 'thinking' -or $previous -eq 'working')) {
+        if ($state -eq 'idle' -and ($previous -eq 'thinking' -or $previous -eq 'working' -or $previous -eq 'waiting')) {
             $state = 'done'
         }
 
@@ -781,7 +793,9 @@ try {
         }
 
         $kind = ''
-        if ($script:agentState -eq 'thinking') {
+        if ($script:agentState -eq 'waiting') {
+            $kind = 'waiting'
+        } elseif ($script:agentState -eq 'thinking') {
             $thinkMs = $now - $script:agentSince
             $longKind = ''
             if ($thinkMs -gt 90000) { $longKind = 'fish' }
@@ -825,6 +839,12 @@ try {
             if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
                 Set-Animation 'eyes-close' $false 'doze'
             }
+        } elseif ($kind -eq 'waiting') {
+            if ($SKINS[$script:skin].Kind -ne 'anim') { Set-StatusBubble '？' }
+            Set-AgentOverlay 'waiting'
+            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup')) {
+                if ($script:animKey -ne 'idle') { Set-Animation 'idle' $true }
+            }
         } elseif ($kind -ne '') {
             Set-AgentOverlay $kind
             if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup')) {
@@ -832,6 +852,12 @@ try {
             }
         } else {
             Set-AgentOverlay ''
+        }
+
+        if ($kind -eq 'waiting' -and $SKINS[$script:skin].Kind -eq 'anim') {
+            $script:tilt.Angle = 10
+        } else {
+            $script:tilt.Angle = 0
         }
     }
 

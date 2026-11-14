@@ -50,6 +50,7 @@ The 267 sprite frames load in about a second.
 | Thinking too long (>45 s) | The bubble shows a bowl of rice; her eyes slowly close into a breathing doze (no zzz) |
 | Even longer (>90 s) | The bubble shows a little fish; she keeps dozing |
 | While dozing | Every 12–28 s she may suddenly wake up, return to normal thinking, then doze off again |
+| Waiting for your confirmation / answer | Tilts her head and shows a pixel "?" |
 | Turn complete | Happy for about 3 seconds |
 | Claude / Codex Girl | Text bubble ("…" / "✓ done"); no animation frames |
 | Idle | Back to idle |
@@ -60,10 +61,12 @@ Claude Code hooks include the tool name and file path in the status file, so `.m
 
 **DSH**: reads the newest `workingActivity.tracker.phase` (`thinking` / `tool` / `idle`) from
 `$DSH_HOME/storages/session_projcache/sessions/*.json`. No DSH changes required.
+Active `userQuestions` or a non-empty `waitingReason` switches to the "waiting for you" state.
 
 **Claude Code**: run `install-claude-hooks.ps1` once. It backs up and merges the hooks into
 `%CLAUDE_CONFIG_DIR%\settings.json`; restart Claude Code afterwards.
 The status file is `%LOCALAPPDATA%\dafeiyu-pet\claude-status.json`.
+Notifications about permissions or waiting for input switch to the waiting state.
 
 ## Launcher mapping
 
