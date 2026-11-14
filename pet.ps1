@@ -1,4 +1,4 @@
-﻿﻿param(
+﻿param(
     [double]$Scale = 0.75,
     [ValidateSet('', 'whale', 'claude', 'codex', 'kimi', 'minimax')][string]$PreviewSkin = '',
     [string]$PreviewAction = 'idle',
