@@ -1,5 +1,9 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿param(
-    [double]$Scale = 0.75
+﻿param(
+    [double]$Scale = 0.75,
+    [ValidateSet('', 'whale', 'claude', 'codex', 'kimi', 'minimax')][string]$PreviewSkin = '',
+    [string]$PreviewAction = 'idle',
+    [int]$PreviewSeconds = 0,
+    [string]$PreviewCapture = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,6 +15,8 @@ Add-Type -AssemblyName System.Windows.Forms
 
 $root = $PSScriptRoot
 $assetRoot = Join-Path $root 'assets'
+. (Join-Path $root 'portrait-motion.ps1')
+. (Join-Path $root 'portrait-actions.ps1')
 $timingsPath = Join-Path $assetRoot 'timings.json'
 $errorLog = Join-Path $root 'pet-error.log'
 $statePath = Join-Path $root 'pet-state.json'
@@ -61,6 +67,15 @@ $SKINS = @{
         Idle  = 'codex-girl\codex-girl.png'
         Happy = 'codex-girl\codex-girl-happy.png'
     }
+    kimi = @{
+        Name = 'Kimi 娘'; Kind = 'static'; W = $staticH; H = $staticH + 8; ImgH = $staticH
+        Idle = 'kimi-girl\kimi-girl.png'; Happy = 'kimi-girl\kimi-girl-happy.png'
+    }
+    minimax = @{
+        Name = 'MiniMax 娘'; Kind = 'static'; W = $staticH; H = $staticH + 8; ImgH = $staticH
+        Idle = 'minimax-girl\minimax-girl.png'; Happy = 'minimax-girl\minimax-girl-happy.png'
+    }
+
 }
 
 # --------------------------------------------------------------- saved state
@@ -77,6 +92,7 @@ if (Test-Path -LiteralPath $statePath) {
     } catch { }
 }
 
+if ($PreviewSkin) { $initialSkin = $PreviewSkin }
 $script:skin = $initialSkin
 $meta0 = $SKINS[$initialSkin]
 
@@ -176,6 +192,7 @@ try {
     Clamp-ToScreen
 
     function Save-PetState {
+        if ($PreviewSkin) { return }
         try {
             $obj = [ordered]@{
                 Left = [math]::Round($win.Left, 1)
@@ -250,6 +267,8 @@ try {
             $workDir = $launchDir
             if (-not (Test-Path -LiteralPath $workDir)) { $workDir = $env:USERPROFILE }
 
+            if ($script:skin -eq 'kimi') { Start-Process 'https://www.kimi.com/'; return }
+            if ($script:skin -eq 'minimax') { Start-Process 'https://agent.minimax.io/'; return }
             if ($script:skin -eq 'codex') {
                 $aumid = Get-ChatGptAumid
                 if ($aumid) { Start-Process -FilePath "shell:AppsFolder\$aumid"; return }
@@ -405,10 +424,8 @@ try {
                 [void]$list.Add([pscustomobject]@{ Img = (Load-Bitmap $path); Dur = [int]$f.dur })
             }
         } else {
-            if ($key -eq 'happy') {
-                [void]$list.Add([pscustomobject]@{ Img = (Load-Bitmap (Join-Path $assetRoot $meta.Happy)); Dur = 1600 })
-            } else {
-                [void]$list.Add([pscustomobject]@{ Img = (Load-Bitmap (Join-Path $assetRoot $meta.Idle)); Dur = 600000 })
+            foreach ($spec in @(Get-PortraitFrameSpec $script:skin $key $assetRoot)) {
+                [void]$list.Add([pscustomobject]@{ Img = (Load-Bitmap $spec.Path); Dur = [int]$spec.Dur })
             }
         }
 
@@ -424,6 +441,7 @@ try {
         )
 
         $frames = Get-AnimationFrames $key
+        $script:actionStartedAt = $script:sw.ElapsedMilliseconds
         $script:animKey = $key
         $script:frames = $frames
         $script:frame = 0
@@ -456,6 +474,7 @@ try {
         }
 
         $script:skin = $key
+        $script:manualSleep = $false
         $statusPopup.IsOpen = $false
         $thoughtImg.Visibility = [System.Windows.Visibility]::Collapsed
         $codeImg.Visibility = [System.Windows.Visibility]::Collapsed
@@ -463,13 +482,30 @@ try {
         $img.Width = $meta.W
         $img.Height = $meta.ImgH
         $script:bob.Y = 0
+        $script:bob.X = 0
+        $img.Opacity = 1
 
         if ($meta.Kind -eq 'anim') {
             [System.Windows.Media.RenderOptions]::SetBitmapScalingMode($img, [System.Windows.Media.BitmapScalingMode]::NearestNeighbor)
         } else {
-            [System.Windows.Media.RenderOptions]::SetBitmapScalingMode($img, [System.Windows.Media.BitmapScalingMode]::HighQuality)
+            [System.Windows.Media.RenderOptions]::SetBitmapScalingMode($img, [System.Windows.Media.BitmapScalingMode]::NearestNeighbor)
         }
 
+        if ($meta.Kind -eq 'static') {
+            $thoughtImg.Width = [math]::Round($meta.W * 0.29)
+            $thoughtImg.Height = [math]::Round($meta.ImgH * 0.27)
+            $thoughtImg.Margin = New-Object System.Windows.Thickness -ArgumentList @([math]::Round($meta.W * 0.69), 0, 0, 0)
+            $codeImg.Width = [math]::Round($meta.W * 0.29)
+            $codeImg.Height = [math]::Round($meta.ImgH * 0.21)
+            $codeImg.Margin = $thoughtImg.Margin
+        } else {
+            $thoughtImg.Width = [math]::Round(105 * $Scale)
+            $thoughtImg.Height = [math]::Round(95 * $Scale)
+            $thoughtImg.Margin = New-Object System.Windows.Thickness -ArgumentList @([math]::Round(195 * $Scale), [math]::Round(8 * $Scale), 0, 0)
+            $codeImg.Width = [math]::Round(105 * $Scale)
+            $codeImg.Height = [math]::Round(70 * $Scale)
+            $codeImg.Margin = New-Object System.Windows.Thickness -ArgumentList @([math]::Round(195 * $Scale), [math]::Round(5 * $Scale), 0, 0)
+        }
         Clamp-ToScreen
         Set-Animation 'idle' $true
 
@@ -477,8 +513,9 @@ try {
     }
 
     function Wake-Pet {
+        $script:manualSleep = $false
         $script:lastInput = $script:sw.ElapsedMilliseconds
-        if ($script:animKey -eq 'sleeping') {
+        if ($script:animKey -in @('sleeping','doze','eyes-closed')) {
             Set-Animation 'waking' $false 'idle'
         }
     }
@@ -486,9 +523,13 @@ try {
     function Update-Animation {
         $now = $script:sw.ElapsedMilliseconds
 
-        if ($SKINS[$script:skin].Kind -eq 'static' -and -not $script:dragging) {
-            $script:bob.Y = -2.4 * (0.5 + 0.5 * [math]::Sin($script:sw.Elapsed.TotalSeconds * 1.8))
+        if ($SKINS[$script:skin].Kind -eq 'static') {
+            # Integer offsets preserve crisp source pixels. No rotation/resampling.
+            $motion = Get-PortraitMotion $script:animKey ($now - $script:actionStartedAt)
+            $script:bob.X = $motion.X
+            $script:bob.Y = $motion.Y
         } else {
+            $script:bob.X = 0
             $script:bob.Y = 0
         }
 
@@ -520,8 +561,7 @@ try {
             return
         }
 
-        if ($SKINS[$script:skin].Kind -eq 'anim' -and
-            $script:agentState -eq 'idle' -and
+        if ($script:agentState -eq 'idle' -and
             $script:animKey -ne 'sleeping' -and $script:animKey -ne 'waking' -and
             (($now - $script:lastInput) -gt 180000)) {
             Set-Animation 'sleeping' $true
@@ -533,11 +573,6 @@ try {
 
         $now = $script:sw.ElapsedMilliseconds
         $script:lastInput = $now
-
-        if ($SKINS[$script:skin].Kind -eq 'static') {
-            Set-Animation 'happy' $false 'idle'
-            return
-        }
 
         $script:clickTimes = @($script:clickTimes | Where-Object { ($now - $_) -lt 1600 })
         $script:clickTimes += $now
@@ -586,7 +621,6 @@ try {
         $codeImg.Visibility = [System.Windows.Visibility]::Collapsed
         $script:overlayKind = ''
 
-        if ($SKINS[$script:skin].Kind -ne 'anim') { return }
 
         $src = $null
         if ($kind -ne '' -and $script:animKey -eq 'sleeping') {
@@ -611,7 +645,6 @@ try {
     }
 
     function Update-OverlayAnimation {
-        if ($SKINS[$script:skin].Kind -ne 'anim') { return }
 
         $kind = $script:overlayKind
         if ($kind -ne 'thinking' -and $kind -ne 'working') { return }
@@ -701,6 +734,13 @@ try {
     }
 
     function Update-AgentStatus {
+        if ($script:manualSleep -or $PreviewSkin) { return }
+        if ($script:previewUntil -gt $script:sw.ElapsedMilliseconds) { return }
+        if ($script:previewUntil -gt 0) {
+            $script:previewUntil = 0
+            Set-Animation 'idle' $true
+            $script:agentState = 'preview-ended'
+        }
         $now = $script:sw.ElapsedMilliseconds
         if (($now - $script:lastStatusAt) -lt 800) { return }
         $script:lastStatusAt = $now
@@ -753,7 +793,7 @@ try {
                 $script:doneUntil = 0
                 Set-StatusBubble '…'
                 Set-AgentOverlay $state
-                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze')) {
+                if ($script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze', 'waiting')) {
                     Set-Animation 'idle' $true
                 }
                 $script:lastInput = $now
@@ -762,14 +802,14 @@ try {
                 Set-AgentOverlay ''
                 $script:doneUntil = $now + 3200
                 if ($null -ne $best) { $script:doneEventTs = $best.ts } else { $script:doneEventTs = $now }
-                if ($script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze')) {
+                if ($script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze', 'waiting')) {
                     Set-Animation 'happy' $false 'idle'
                 }
             } else {
                 Set-StatusBubble ''
                 Set-AgentOverlay ''
                 $script:doneUntil = 0
-                if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze')) {
+                if ($script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze', 'waiting')) {
                     Set-Animation 'idle' $true
                 }
             }
@@ -780,7 +820,7 @@ try {
             $script:doneUntil = 0
             Set-StatusBubble ''
             Set-AgentOverlay ''
-            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'happy')) {
+            if ($script:animKey -in @('idle', 'happy')) {
                 Set-Animation 'idle' $true
             }
         }
@@ -818,30 +858,32 @@ try {
         }
 
         if ($kind -eq 'working') {
-            Set-AgentOverlay ''
-            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze')) {
+            if ($SKINS[$script:skin].Kind -eq 'static') { Set-AgentOverlay 'working' } else { Set-AgentOverlay '' }
+            if ($script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze', 'waiting')) {
                 if ($script:animKey -ne 'typing') { Set-Animation 'typing' $true }
             }
         } elseif ($kind -eq 'docs') {
             Set-AgentOverlay 'docs'
-            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze')) {
+            if ($script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze', 'waiting')) {
                 if ($script:animKey -ne 'typing-homework') { Set-Animation 'typing-homework' $true }
             }
         } elseif ($kind -eq 'rice' -or $kind -eq 'fish') {
             Set-AgentOverlay $kind
-            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
+            if ($script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework')) {
                 Set-Animation 'eyes-close' $false 'doze'
             }
         } elseif ($kind -eq 'waiting') {
             if ($SKINS[$script:skin].Kind -ne 'anim') { Set-StatusBubble '？' }
             Set-AgentOverlay 'waiting'
-            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze')) {
-                if ($script:animKey -ne 'idle') { Set-Animation 'idle' $true }
+            if ($script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze', 'waiting')) {
+                $pose = if ($SKINS[$script:skin].Kind -eq 'static') { 'waiting' } else { 'idle' }
+                if ($script:animKey -ne $pose) { Set-Animation $pose $true }
             }
         } elseif ($kind -ne '') {
             Set-AgentOverlay $kind
-            if ($SKINS[$script:skin].Kind -eq 'anim' -and $script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze')) {
-                if ($script:animKey -ne 'idle') { Set-Animation 'idle' $true }
+            if ($script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze', 'waiting')) {
+                $pose = if ($SKINS[$script:skin].Kind -eq 'static') { 'thinking' } else { 'idle' }
+                if ($script:animKey -ne $pose) { Set-Animation $pose $true }
             }
         } else {
             Set-AgentOverlay ''
@@ -859,7 +901,7 @@ try {
             param($s, $e)
             $script:lastInput = $script:sw.ElapsedMilliseconds
 
-            if ($script:animKey -eq 'sleeping') {
+            if ($script:animKey -in @('sleeping','doze','eyes-closed')) {
                 Wake-Pet
                 return
             }
@@ -938,7 +980,7 @@ try {
 
     $miSleep = New-Object System.Windows.Controls.MenuItem
     $miSleep.Header = '睡一会儿'
-    $miSleep.Add_Click({ param($s, $e) Set-Animation 'sleeping' $true })
+    $miSleep.Add_Click({ param($s, $e) $script:manualSleep = $true; Set-Animation 'sleeping' $true; Set-AgentOverlay '' })
     $menu.Items.Add($miSleep) | Out-Null
 
     $miWake = New-Object System.Windows.Controls.MenuItem
@@ -948,7 +990,7 @@ try {
 
     $miSkin = New-Object System.Windows.Controls.MenuItem
     $miSkin.Header = '换形象'
-    foreach ($k in @('whale', 'claude', 'codex')) {
+    foreach ($k in @('whale', 'claude', 'codex', 'kimi', 'minimax')) {
         $mi = New-Object System.Windows.Controls.MenuItem
         $mi.Header = $SKINS[$k].Name
         $mi.Tag = $k
@@ -975,18 +1017,38 @@ try {
     $miQuit.Add_Click({ param($s, $e) Save-PetState; $win.Close() })
     $menu.Items.Add($miQuit) | Out-Null
 
+    $miPreview = New-Object System.Windows.Controls.MenuItem
+    $miPreview.Header = '动作预览'
+    foreach ($entry in @(@('待机','idle'), @('开心','happy'), @('思考','thinking'), @('工作','typing'), @('写文档','typing-homework'), @('等你确认','waiting'), @('睡觉','sleeping'), @('唤醒','waking'), @('左边轻戳','poke-left'), @('右边轻戳','poke-right'), @('怕痒','tickle'))) {
+        $item = New-Object System.Windows.Controls.MenuItem
+        $item.Header = $entry[0]; $item.Tag = $entry[1]
+        $item.Add_Click({
+            param($s,$e)
+            $script:manualSleep = $false
+            $script:previewUntil = $script:sw.ElapsedMilliseconds + 6500
+            $script:lastInput = $script:sw.ElapsedMilliseconds
+            Set-AgentOverlay ''
+            $loop = [string]$s.Tag -notin @('happy','waking','poke-left','poke-right','tickle')
+            Set-Animation ([string]$s.Tag) $loop 'idle'
+        })
+        [void]$miPreview.Items.Add($item)
+    }
+    [void]$menu.Items.Add($miPreview)
+
     $win.ContextMenu = $menu
 
     function Update-SkinMenu {
         foreach ($item in $miSkin.Items) {
             $item.IsChecked = ([string]$item.Tag -eq $script:skin)
         }
-        $miSleep.IsEnabled = ($script:skin -eq 'whale')
-        $miWake.IsEnabled = ($script:skin -eq 'whale')
+        $miSleep.IsEnabled = $true
+        $miWake.IsEnabled = $true
 
         switch ($script:skin) {
             'claude' { $miLaunch.Header = '启动 Claude Code' }
             'codex'  { $miLaunch.Header = '启动 ChatGPT' }
+            'kimi' { $miLaunch.Header = '打开 Kimi' }
+            'minimax' { $miLaunch.Header = '打开 MiniMax' }
             default  { $miLaunch.Header = '启动 DSH' }
         }
     }
@@ -1028,6 +1090,25 @@ try {
 
     Apply-Skin $initialSkin $false
     Update-SkinMenu
+    if ($PreviewSkin) { Set-Animation $PreviewAction $true }
+    if ($PreviewSeconds -gt 0) {
+        $captureTimer = New-Object System.Windows.Threading.DispatcherTimer
+        $captureTimer.Interval = [TimeSpan]::FromSeconds($PreviewSeconds)
+        $captureTimer.Add_Tick({
+            $captureTimer.Stop()
+            if ($PreviewCapture) {
+                $grid.UpdateLayout()
+                $render = New-Object System.Windows.Media.Imaging.RenderTargetBitmap -ArgumentList @([int][math]::Ceiling($win.Width), [int][math]::Ceiling($win.Height), 96, 96, [System.Windows.Media.PixelFormats]::Pbgra32)
+                $render.Render($grid)
+                $encoder = New-Object System.Windows.Media.Imaging.PngBitmapEncoder
+                $encoder.Frames.Add([System.Windows.Media.Imaging.BitmapFrame]::Create($render))
+                $stream = [IO.File]::Create($PreviewCapture)
+                try { $encoder.Save($stream) } finally { $stream.Dispose() }
+            }
+            $win.Close()
+        })
+        $win.Add_Loaded({ $captureTimer.Start() })
+    }
 
     # --------------------------------------------------------------------- run
     $app = New-Object System.Windows.Application

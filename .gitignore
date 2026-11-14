@@ -1,3 +1,10 @@
-﻿pet-state.json
+pet-state.json
 pet-error.log
 *.log
+assets/*-girl/*-draft-*
+assets/*-girl/*-source.png
+assets/*-girl/*-generated-original.png
+assets/*-girl/*-before-approved-v2.png
+assets/*-girl/sources/
+assets/qwen-girl/
+pet.before-*.ps1

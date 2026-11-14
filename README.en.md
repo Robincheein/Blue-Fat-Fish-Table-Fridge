@@ -2,7 +2,7 @@
 
 [中文](README.md) · English
 
-A Windows desktop pet for the DSH pixel mascots. It follows the DSH / Claude Code agent states, can switch between Whale Girl / Claude Girl / Codex Girl, and can launch your local agents from the context menu.
+A Windows desktop pet for the DSH pixel mascots. It follows the DSH / Claude Code agent states, can switch between Whale Girl / Claude Girl / Codex Girl / Kimi Girl / MiniMax Girl, and can launch your local agents from the context menu.
 
 ## Quick start
 
@@ -11,6 +11,12 @@ Windows 10/11 with PowerShell 5.1 (built in). No extra dependencies.
 1. Clone or download this repository
 2. Double-click `launch.vbs`
 3. (Optional) Run `install-claude-hooks.ps1`, then restart Claude Code to sync its states
+
+## Characters
+
+Switchable: Whale Girl, Claude Girl, Codex Girl, Kimi Girl, MiniMax Girl. Static characters have their own thinking / working / waiting / sleeping poses:
+
+<img src="docs/four-agent-actions-preview.png" alt="character actions" width="900">
 
 ## States
 
@@ -29,7 +35,7 @@ Windows 10/11 with PowerShell 5.1 (built in). No extra dependencies.
 | Done | The turn finished |
 | Sleeping | Idle for 3 minutes |
 
-DSH states are automatic; Claude Code needs the one-time hooks installer.
+DSH states are automatic; Claude Code needs the one-time hooks installer. Static characters use their own pose images; Qwen's portrait is still a draft and is not in the menu.
 
 ## Interactions
 
@@ -37,7 +43,7 @@ DSH states are automatic; Claude Code needs the one-time hooks installer.
 - Triple-click: ticklish
 - Double-click: hearts
 - Drag: pick her up; screen edges stop her
-- Right-click: launch / change skin / sleep / wake / reset position / quit
+- Right-click: launch / change skin / action preview / sleep / wake / reset position / quit
 
 ## Launch
 
@@ -46,6 +52,8 @@ The context menu item follows the current skin and auto-detects the best local e
 - Whale Girl: `dst` → DSH web → DSH desktop → `dsh` CLI
 - Claude Girl: `claude` CLI → Claude desktop → claude.ai
 - Codex Girl: ChatGPT desktop → `codex` CLI → chatgpt.com/codex
+- Kimi Girl: opens kimi.com
+- MiniMax Girl: opens agent.minimax.io
 
 ## Credits
 

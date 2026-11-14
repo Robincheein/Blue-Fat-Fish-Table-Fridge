@@ -1,0 +1,26 @@
+﻿[
+    {
+        "skin":  "kimi",
+        "happyReturnsIdle":  true,
+        "actions":  27,
+        "wakeReturnsIdle":  true
+    },
+    {
+        "skin":  "minimax",
+        "happyReturnsIdle":  true,
+        "actions":  27,
+        "wakeReturnsIdle":  true
+    },
+    {
+        "skin":  "claude",
+        "happyReturnsIdle":  true,
+        "actions":  27,
+        "wakeReturnsIdle":  true
+    },
+    {
+        "skin":  "codex",
+        "happyReturnsIdle":  true,
+        "actions":  27,
+        "wakeReturnsIdle":  true
+    }
+]

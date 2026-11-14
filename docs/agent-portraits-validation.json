@@ -1,0 +1,92 @@
+{
+  "kimi": {
+    "file": "E:\\desktop\\CODE\\whale-girl-pet\\assets\\kimi-girl\\kimi-girl.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "alpha": [
+      0,
+      255
+    ],
+    "opaqueColours": 10,
+    "palette": [
+      "#373D5C",
+      "#151528",
+      "#F8F0E6",
+      "#D6D2D7",
+      "#141426",
+      "#303653",
+      "#101022",
+      "#3A405F",
+      "#6E728F",
+      "#17172B"
+    ],
+    "bbox": [
+      40,
+      8,
+      984,
+      1024
+    ]
+  },
+  "qwen": {
+    "file": "E:\\desktop\\CODE\\whale-girl-pet\\assets\\qwen-girl\\qwen-girl.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "alpha": [
+      0,
+      255
+    ],
+    "opaqueColours": 10,
+    "palette": [
+      "#5A4784",
+      "#26152E",
+      "#FDF7F5",
+      "#CDAAD6",
+      "#5B4885",
+      "#322144",
+      "#FBECE4",
+      "#22122A",
+      "#503D76",
+      "#6C5196"
+    ],
+    "bbox": [
+      64,
+      8,
+      976,
+      1016
+    ]
+  },
+  "minimax": {
+    "file": "E:\\desktop\\CODE\\whale-girl-pet\\assets\\minimax-girl\\minimax-girl.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "alpha": [
+      0,
+      255
+    ],
+    "opaqueColours": 10,
+    "palette": [
+      "#F493A4",
+      "#3B1726",
+      "#C75C76",
+      "#8C3952",
+      "#FCEADE",
+      "#431E2D",
+      "#F597A7",
+      "#3E1A29",
+      "#F9C6C4",
+      "#EB8C9E"
+    ],
+    "bbox": [
+      64,
+      16,
+      968,
+      1016
+    ]
+  }
+}
