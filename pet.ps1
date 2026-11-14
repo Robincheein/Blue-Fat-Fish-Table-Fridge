@@ -1,4 +1,4 @@
-﻿param(
+﻿﻿param(
     [double]$Scale = 0.75,
     [ValidateSet('', 'whale', 'claude', 'codex', 'kimi', 'minimax')][string]$PreviewSkin = '',
     [string]$PreviewAction = 'idle',
@@ -555,7 +555,7 @@ try {
         if ($SKINS[$script:skin].Kind -eq 'anim' -and
             $script:agentState -eq 'idle' -and
             $script:animKey -eq 'idle' -and $script:loop -and $now -ge $script:nextVariation) {
-            $pick = @('idle-look', 'idle-spout', 'swim') | Get-Random
+            $pick = @('idle-look', 'idle-spout', 'swim', 'music') | Get-Random
             Set-Animation $pick $false 'idle'
             $script:nextVariation = $now + (Get-Random -Minimum 16000 -Maximum 38000)
             return
@@ -803,7 +803,8 @@ try {
                 $script:doneUntil = $now + 3200
                 if ($null -ne $best) { $script:doneEventTs = $best.ts } else { $script:doneEventTs = $now }
                 if ($script:animKey -in @('idle', 'thinking', 'typing', 'typing-homework', 'eyes-close', 'eyes-closed', 'wakeup', 'doze', 'waiting')) {
-                    Set-Animation 'happy' $false 'idle'
+                    $doneAnim = @('happy', 'thumbs-up') | Get-Random
+                    Set-Animation $doneAnim $false 'idle'
                 }
             } else {
                 Set-StatusBubble ''
@@ -926,7 +927,8 @@ try {
             if (-not $script:dragging) {
                 if (([math]::Abs($dx) + [math]::Abs($dy)) -lt 5) { return }
                 $script:dragging = $true
-                Set-Animation 'drag' $true
+                $dragAnim = @('drag', 'carrying') | Get-Random
+                Set-Animation $dragAnim $true
             }
 
             $win.Left = $script:startLeft + ($dx / $script:dpi)
