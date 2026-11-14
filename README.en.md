@@ -50,7 +50,7 @@ The 267 sprite frames load in about a second.
 | Thinking too long (>45 s) | The bubble shows a bowl of rice; her eyes slowly close into a breathing doze (no zzz) |
 | Even longer (>90 s) | The bubble shows a little fish; she keeps dozing |
 | While dozing | Every 12–28 s she may suddenly wake up, return to normal thinking, then doze off again |
-| Waiting for your confirmation / answer | Tilts her head and shows a pixel "?" |
+| Waiting for your confirmation / answer | Shows a pixel "?" overhead |
 | Turn complete | Happy for about 3 seconds |
 | Claude / Codex Girl | Text bubble ("…" / "✓ done"); no animation frames |
 | Idle | Back to idle |

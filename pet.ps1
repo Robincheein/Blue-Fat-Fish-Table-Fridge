@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿param(
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿param(
     [double]$Scale = 0.75
 )
 
@@ -129,11 +129,7 @@ try {
     [void]$grid.Children.Add($codeImg)
 
     $script:bob = New-Object System.Windows.Media.TranslateTransform(0, 0)
-    $script:tilt = New-Object System.Windows.Media.RotateTransform(0)
-    $script:trans = New-Object System.Windows.Media.TransformGroup
-    [void]$script:trans.Children.Add($script:bob)
-    [void]$script:trans.Children.Add($script:tilt)
-    $img.RenderTransform = $script:trans
+    $img.RenderTransform = $script:bob
 
     # ------------------------------------------------------------ status bubble
     $statusBorder = New-Object System.Windows.Controls.Border
@@ -466,9 +462,6 @@ try {
         $script:overlayKind = ''
         $img.Width = $meta.W
         $img.Height = $meta.ImgH
-        $script:tilt.CenterX = $meta.W / 2
-        $script:tilt.CenterY = $meta.ImgH * 0.62
-        $script:tilt.Angle = 0
         $script:bob.Y = 0
 
         if ($meta.Kind -eq 'anim') {
@@ -854,11 +847,6 @@ try {
             Set-AgentOverlay ''
         }
 
-        if ($kind -eq 'waiting' -and $SKINS[$script:skin].Kind -eq 'anim') {
-            $script:tilt.Angle = 10
-        } else {
-            $script:tilt.Angle = 0
-        }
     }
 
     # ------------------------------------------------------------------ input
